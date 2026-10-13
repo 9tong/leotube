@@ -99,4 +99,8 @@ LeoTube stands on the shoulders of these projects. Thank you to their authors an
 - [YouTube Music Desktop](https://github.com/th-ch/youtube-music) by @th-ch, the popular cross-platform desktop app with plugins.
 - [YTubic](https://github.com/NUber-dev/YTubic) by @NUber-dev, a fast, native-feeling YouTube Music desktop client.
 
+## License
+
+LeoTube is released under the [MIT License](LICENSE).
+
 LeoTube is not affiliated with, endorsed by, or connected to Google or YouTube. YouTube Music is a trademark of Google LLC.
