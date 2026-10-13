@@ -11,7 +11,7 @@ swift build -c "$CONFIG" --product LeoTube
 BIN="$(swift build -c "$CONFIG" --show-bin-path)/LeoTube"
 
 # App icon: Resources/AppIcon.png (1024², transparent) → AppIcon.icns.
-# Regenerate the PNG from a flat render with: swift scripts/prepare-icon.swift icon.png Resources/AppIcon.png
+# Regenerate it from the artwork with: swift scripts/prepare-icon.swift Resources/AppIcon-source.png Resources/AppIcon.png
 if [ ! -f Resources/AppIcon.icns ] || [ Resources/AppIcon.png -nt Resources/AppIcon.icns ]; then
   TMP="$(mktemp -d)"
   if [ -f Resources/AppIcon.png ]; then
