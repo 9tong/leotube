@@ -95,6 +95,7 @@ struct SearchResultsView: View {
     @State private var filtered: SearchResults?
     @State private var error: String?
     @State private var loadingMore = false
+    @State private var width: CGFloat = 1000
 
     var body: some View {
         ScrollView {
@@ -120,6 +121,7 @@ struct SearchResultsView: View {
             .padding(.top, 8)
             .padding(.bottom, 40)
         }
+        .readWidth($width)
         .background(alignment: .top) { PageGlow(color: Color(red: 0.9, green: 0.35, blue: 0.6)) }
         .task { await load() }
     }
@@ -173,13 +175,16 @@ struct SearchResultsView: View {
     @ViewBuilder private func allResults(_ r: SearchResults) -> some View {
         let items = r.shelves.flatMap(\.items)
         let songs = Array((r.topItems + items).filter { $0.kind == .song }.uniqued().prefix(5))
-        HStack(alignment: .top, spacing: 24) {
+        let topLayout = width < 760
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 24))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 24))
+        topLayout {
             if let top = r.top {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Top result").font(.system(size: 22, weight: .bold))
                     TopResultCard(item: top)
                 }
-                .frame(minWidth: 300, maxWidth: 420)
+                .frame(maxWidth: width < 760 ? .infinity : 420)
             }
             if !songs.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {

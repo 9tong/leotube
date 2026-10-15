@@ -133,6 +133,9 @@ struct HeroCard: View {
     let item: MediaItem
     var strapline: String
     @State private var hovering = false
+    @State private var width: CGFloat = 1000
+
+    private var compact: Bool { width < 600 }
 
     var body: some View {
         ZStack(alignment: .leading) {
@@ -144,7 +147,7 @@ struct HeroCard: View {
 
             HStack(spacing: 28) {
                 ArtworkView(artwork: item.artwork, size: 480, cornerRadius: 14, circle: item.usesCircularArtwork)
-                    .frame(width: 196, height: 196)
+                    .frame(width: compact ? 120 : 196, height: compact ? 120 : 196)
                     .shadow(color: .black.opacity(0.45), radius: 24, y: 12)
                     .scaleEffect(hovering ? 1.03 : 1)
 
@@ -154,7 +157,7 @@ struct HeroCard: View {
                         .tracking(1.2)
                         .foregroundStyle(.white.opacity(0.75))
                     Text(item.title)
-                        .font(.system(size: 40, weight: .black))
+                        .font(.system(size: compact ? 28 : 40, weight: .black))
                         .tracking(-0.8)
                         .foregroundStyle(.white)
                         .lineLimit(2)
@@ -191,7 +194,8 @@ struct HeroCard: View {
             }
             .padding(28)
         }
-        .frame(height: 252)
+        .frame(height: compact ? 220 : 252)
+        .readWidth($width)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(.white.opacity(0.08)))
         .shadow(color: .black.opacity(0.25), radius: 20, y: 10)

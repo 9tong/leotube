@@ -13,7 +13,13 @@ final class AuthManager {
     private(set) var hasChecked = false
     var account: AccountInfo?
 
-    let dataStore = WKWebsiteDataStore.default()
+    let dataStore = AuthManager.sharedDataStore
+
+    /// The WebKit session shared by sign-in, the API client and the player.
+    /// `LEOTUBE_EPHEMERAL=1` swaps in a throwaway session for development
+    /// runs, so they never touch the user's real account.
+    static let sharedDataStore: WKWebsiteDataStore =
+        ProcessInfo.processInfo.environment["LEOTUBE_EPHEMERAL"] != nil ? .nonPersistent() : .default()
 
     static let signInURL: URL = {
         let next = "https://music.youtube.com/"

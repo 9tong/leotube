@@ -80,7 +80,7 @@ struct RootView: View {
         }
         .tint(Theme.accent)
         .preferredColorScheme(app.appearance.colorScheme)
-        .frame(minWidth: 860, minHeight: 600)
+        .frame(minWidth: 600, minHeight: 500)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { app.windowWidth = $0 }
     }
 

@@ -81,7 +81,9 @@ swift scripts/prepare-icon.swift Resources/AppIcon-source.png Resources/AppIcon.
 |---|---|
 | `swift run ytm-probe [home\|explore\|search <q>\|browse <id>\|next <videoId>]` | Runs the parsers against the live API. |
 | `LEOTUBE_DEBUG=1` | Logs the player engine's state. |
-| `LEOTUBE_DEBUG_TOUR=<dir>` | Walks through the main screens and saves a real window capture of each, Liquid Glass included. If you're signed in, it runs a real search on your account. |
+| `LEOTUBE_DEBUG_TOUR=<dir>` | Walks through the main screens and saves a real window capture of each, Liquid Glass included. If you're signed in, it runs a real search on your account unless you also set `LEOTUBE_EPHEMERAL`. |
+| `LEOTUBE_DEBUG_TOUR_SIZE=<w>x<h>` | Window size for the tour, e.g. `730x900` to check Split View layouts. |
+| `LEOTUBE_EPHEMERAL=1` | Uses a throwaway signed-out session, so development runs never touch your real account. |
 | `LEOTUBE_DEBUG_PLAY=<videoId>` | Starts playback at launch. |
 
 ## Notes

@@ -21,8 +21,10 @@ enum DebugTour {
                 await shot("00-welcome", wait: 3)
                 app.showWelcome = false
             }
-            if let w = NSApp.windows.first(where: { $0.isVisible && $0.frame.width > 600 && $0.alphaValue > 0 }) {
-                w.setFrame(NSRect(x: 60, y: 60, width: 1480, height: 920), display: true)
+            let size = (ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_TOUR_SIZE"] ?? "1480x920")
+                .split(separator: "x").compactMap { Double($0) }
+            if size.count == 2, let w = NSApp.windows.first(where: { $0.isVisible && $0.frame.width > 400 && $0.alphaValue > 0 }) {
+                w.setFrame(NSRect(x: 40, y: 40, width: size[0], height: size[1]), display: true)
             }
             app.selection = .home
             await shot("01-home", wait: 7)
@@ -53,7 +55,7 @@ enum DebugTour {
             app.showNowPlaying = false
             app.showLogin = true
             try? await Task.sleep(for: .seconds(8))
-            if let sheet = NSApp.windows.first(where: { $0.isVisible && $0.frame.width > 600 && $0.alphaValue > 0 })?.attachedSheet {
+            if let sheet = NSApp.windows.first(where: { $0.isVisible && $0.frame.width > 400 && $0.alphaValue > 0 })?.attachedSheet {
                 snapshot(window: sheet, to: out.appendingPathComponent("11-login.png"))
             }
             app.showLogin = false
@@ -64,7 +66,7 @@ enum DebugTour {
     private typealias CreateImageFn = @convention(c) (CGRect, UInt32, UInt32, UInt32) -> Unmanaged<CGImage>?
 
     static func snapshot(to url: URL) {
-        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.frame.width > 600 && $0.alphaValue > 0 }) else { return }
+        guard let window = NSApp.windows.first(where: { $0.isVisible && $0.frame.width > 400 && $0.alphaValue > 0 }) else { return }
         snapshot(window: window, to: url)
     }
 

@@ -120,11 +120,14 @@ struct VolumeControl: View {
 struct TransportControls: View {
     @Environment(AppModel.self) private var app
     var scale: CGFloat = 1
+    var showModes = true
 
     var body: some View {
         let p = app.player
         HStack(spacing: 22 * scale) {
-            toggle("shuffle", active: p.shuffle, help: "Shuffle") { p.toggleShuffle() }
+            if showModes {
+                toggle("shuffle", active: p.shuffle, help: "Shuffle") { p.toggleShuffle() }
+            }
             button("backward.fill", size: 17, help: "Previous") { p.previous() }
             Button {
                 p.togglePlayPause()
@@ -148,7 +151,9 @@ struct TransportControls: View {
             .disabled(p.current == nil)
             .help(p.isPlaying ? "Pause" : "Play")
             button("forward.fill", size: 17, help: "Next") { p.next() }
-            toggle(p.repeatMode.symbol, active: p.repeatMode != .off, help: "Repeat") { p.repeatMode = p.repeatMode.next }
+            if showModes {
+                toggle(p.repeatMode.symbol, active: p.repeatMode != .off, help: "Repeat") { p.repeatMode = p.repeatMode.next }
+            }
         }
         .disabled(p.current == nil)
     }

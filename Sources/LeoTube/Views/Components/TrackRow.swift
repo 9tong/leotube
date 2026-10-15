@@ -11,6 +11,7 @@ struct TrackRow: View {
     var onPlay: (() -> Void)?
     var onRemove: (() -> Void)?
     @State private var hovering = false
+    @State private var rowWidth: CGFloat = 1000
 
     private var isCurrent: Bool { item.videoId != nil && app.player.current?.videoId == item.videoId }
     private var isTrack: Bool { item.videoId != nil }
@@ -40,7 +41,7 @@ struct TrackRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            if showAlbum, isTrack {
+            if showAlbum, isTrack, rowWidth >= 620 {
                 Group {
                     if let album = item.album {
                         Button(album.name) { app.openAlbum(album) }
@@ -80,6 +81,7 @@ struct TrackRow: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 56)
+        .readWidth($rowWidth)
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.primary.opacity(isCurrent ? 0.08 : (hovering ? 0.06 : 0)))

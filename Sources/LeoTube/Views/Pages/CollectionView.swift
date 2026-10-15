@@ -10,6 +10,11 @@ struct CollectionView: View {
     @State private var expandedDescription = false
     @State private var saved: Bool?
     @State private var confirmDelete = false
+    @State private var width: CGFloat = 1000
+
+    private var narrow: Bool { width < 640 }
+    /// The Album column only fits when there is room for it.
+    private var showAlbumColumn: Bool { !isAlbum && width >= 720 }
 
     private var page: BrowsePage { loader.page ?? BrowsePage() }
     private var header: PageHeader { page.header ?? PageHeader(kind: .playlist, title: "") }
@@ -49,6 +54,7 @@ struct CollectionView: View {
             }
             .padding(.bottom, 40)
         }
+        .readWidth($width)
         .background(alignment: .top) {
             LinearGradient(colors: [tint.opacity(0.85), tint.opacity(0.35), .clear], startPoint: .top, endPoint: .bottom)
                 .frame(height: 560)
@@ -69,9 +75,14 @@ struct CollectionView: View {
     // MARK: Hero
 
     private var hero: some View {
-        HStack(alignment: .bottom, spacing: 28) {
+        // Side by side on wide windows; artwork above the title when narrow.
+        let layout = narrow
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 20))
+            : AnyLayout(HStackLayout(alignment: .bottom, spacing: 28))
+        let artSide: CGFloat = narrow ? 180 : (width < 820 ? 190 : 228)
+        return layout {
             ArtworkView(artwork: header.artwork, size: 600, cornerRadius: 14)
-                .frame(width: 228, height: 228)
+                .frame(width: artSide, height: artSide)
                 .shadow(color: .black.opacity(0.45), radius: 30, y: 16)
 
             VStack(alignment: .leading, spacing: 10) {
@@ -80,19 +91,26 @@ struct CollectionView: View {
                     .tracking(0.6)
                     .foregroundStyle(.primary.opacity(0.85))
                 Text(header.title)
-                    .font(.system(size: header.title.count > 28 ? 40 : 56, weight: .black))
+                    .font(.system(size: titleSize, weight: .black))
                     .tracking(-1)
                     .lineLimit(2)
                     .minimumScaleFactor(0.5)
                     .textSelection(.enabled)
-                HStack(spacing: 8) {
-                    if let art = header.authorArtwork, !art.isEmpty {
-                        ArtworkView(artwork: art, size: 64, circle: true).frame(width: 24, height: 24)
+                let metaLayout = narrow
+                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+                    : AnyLayout(HStackLayout(spacing: 8))
+                metaLayout {
+                    HStack(spacing: 8) {
+                        if let art = header.authorArtwork, !art.isEmpty {
+                            ArtworkView(artwork: art, size: 64, circle: true).frame(width: 24, height: 24)
+                        }
+                        authorLinks
                     }
-                    authorLinks
                     if let s = header.secondSubtitle {
-                        Text("•").foregroundStyle(.secondary)
-                        Text(s).foregroundStyle(.secondary).lineLimit(1)
+                        HStack(spacing: 8) {
+                            if !narrow { Text("•").foregroundStyle(.secondary) }
+                            Text(s).foregroundStyle(.secondary).lineLimit(1)
+                        }
                     }
                 }
                 .font(.system(size: 13.5, weight: .semibold))
@@ -125,6 +143,13 @@ struct CollectionView: View {
                 }
             }
         }
+    }
+
+    private var titleSize: CGFloat {
+        let long = header.title.count > 28
+        if narrow { return long ? 26 : 34 }
+        if width < 820 { return long ? 32 : 44 }
+        return long ? 40 : 56
     }
 
     private var typeLine: String {
@@ -220,11 +245,11 @@ struct CollectionView: View {
                 .frame(maxWidth: .infinity, minHeight: 200)
         } else {
             VStack(spacing: 2) {
-                TrackListHeader(showArtwork: !isAlbum, showAlbum: !isAlbum)
+                TrackListHeader(showArtwork: !isAlbum, showAlbum: showAlbumColumn)
                     .padding(.bottom, 6)
                 LazyVStack(spacing: 2) {
                     ForEach(Array(tracks.enumerated()), id: \.element.id) { idx, item in
-                        TrackRow(item: item, number: idx + 1, showArtwork: !isAlbum, showAlbum: !isAlbum,
+                        TrackRow(item: item, number: idx + 1, showArtwork: !isAlbum, showAlbum: showAlbumColumn,
                                  onPlay: { app.player.play(items: tracks, startAt: idx, source: header.title) },
                                  onRemove: removeAction(for: item))
                     }

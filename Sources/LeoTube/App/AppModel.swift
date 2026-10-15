@@ -52,11 +52,14 @@ final class AppModel {
     var submittedQuery = ""
     var showQueuePopover = false
     var showInspector = false {
-        didSet { adjustColumnsForInspector() }
+        didSet { updateSidebarForSpace() }
     }
     var columnVisibility: NavigationSplitViewVisibility = .all
-    @ObservationIgnored var windowWidth: CGFloat = 1480
+    @ObservationIgnored var windowWidth: CGFloat = 1480 {
+        didSet { updateSidebarForSpace() }
+    }
     @ObservationIgnored private var sidebarAutoHidden = false
+    @ObservationIgnored private var sidebarDidNotFit = false
     var inspectorTab: InspectorTab = .queue
     var showNowPlaying = false
     var showLogin = false
@@ -86,7 +89,7 @@ final class AppModel {
         contentRegion = region
         client = YTMusicClient(language: lang, region: region,
                                cookieProvider: { await AppModel.sessionCookies() })
-        engine = PlayerEngine(dataStore: .default())
+        engine = PlayerEngine(dataStore: AuthManager.sharedDataStore)
         player = PlaybackController(engine: engine, client: client)
         player.onToast = { [weak self] in self?.showToast($0) }
         player.onSignInRequired = { [weak self] reason in self?.handleSignInRequired(reason) }
@@ -94,7 +97,7 @@ final class AppModel {
     }
 
     @MainActor static func sessionCookies() async -> [HTTPCookie] {
-        await WKWebsiteDataStore.default().httpCookieStore.allCookies()
+        await AuthManager.sharedDataStore.httpCookieStore.allCookies()
     }
 
     static var systemLanguage: String {
@@ -398,13 +401,17 @@ final class AppModel {
         }
     }
 
-    /// Three columns need ~1500pt; on narrower windows the queue panel
-    /// temporarily replaces the sidebar instead of squeezing everything.
-    private func adjustColumnsForInspector() {
-        if showInspector, windowWidth < 1500, columnVisibility != .detailOnly {
+    /// Hides the sidebar while there isn't room for it: narrow windows (e.g.
+    /// Split View) or the side panel open on a window under ~1500pt. Acts
+    /// only when crossing the threshold, so a sidebar the user re-opens stays.
+    private func updateSidebarForSpace() {
+        let doesNotFit = windowWidth < 820 || (showInspector && windowWidth < 1500)
+        guard doesNotFit != sidebarDidNotFit else { return }
+        sidebarDidNotFit = doesNotFit
+        if doesNotFit, columnVisibility != .detailOnly {
             sidebarAutoHidden = true
             withAnimation(.spring(duration: 0.35)) { columnVisibility = .detailOnly }
-        } else if !showInspector, sidebarAutoHidden {
+        } else if !doesNotFit, sidebarAutoHidden {
             sidebarAutoHidden = false
             withAnimation(.spring(duration: 0.35)) { columnVisibility = .all }
         }

@@ -65,6 +65,13 @@ extension MediaItem {
     var usesCircularArtwork: Bool { kind == .artist || kind == .profile }
 }
 
+extension View {
+    /// Reports this view's width, for layouts that adapt to narrow windows.
+    func readWidth(_ width: Binding<CGFloat>) -> some View {
+        onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width.wrappedValue = $0 }
+    }
+}
+
 // MARK: - Reusable styles
 
 /// Adds a gentle highlight on hover, Spotify-style.
