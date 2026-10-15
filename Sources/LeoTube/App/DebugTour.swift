@@ -43,6 +43,9 @@ enum DebugTour {
             await shot("07-search-results")
             app.selection = .library
             await shot("08-library", wait: 3)
+            if let i = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_QUEUE_AT"].flatMap(Int.init) {
+                app.player.debugSetIndex(i)
+            }
             app.showQueuePopover = true
             app.selection = .home
             await shot("09-home-queue", wait: 4)

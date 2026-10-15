@@ -6,6 +6,7 @@ struct HomeView: View {
     @State private var loader = PageLoader()
     @State private var chipParams: String?
     @State private var tint: Color = Theme.accent.opacity(0.6)
+    @State private var featured: Featured?
 
     private var target: BrowseTarget { BrowseTarget(browseId: "FEmusic_home", params: chipParams) }
 
@@ -14,9 +15,11 @@ struct HomeView: View {
             LazyVStack(alignment: .leading, spacing: 34) {
                 header
                 if let page = loader.page {
-                    if let hero = heroItem(page) {
-                        HeroCard(item: hero.item, strapline: hero.shelf).padding(.horizontal, Theme.pagePadding)
+                    if let hero = featured {
+                        HeroCard(item: hero.item, strapline: hero.label).padding(.horizontal, Theme.pagePadding)
                             .dominantColor(of: hero.item.artwork, into: $tint)
+                            .id(hero.item.id)
+                            .transition(.opacity)
                     }
                     ForEach(page.shelves) { shelf in
                         ShelfView(shelf: shelf)
@@ -45,7 +48,9 @@ struct HomeView: View {
         }
         .task(id: TaskKey(target: target, session: app.sessionID)) {
             await loader.load(app, target: target)
+            refreshFeatured()
         }
+        .onChange(of: app.auth.account?.name) { refreshFeatured() }
     }
 
     private var header: some View {
@@ -71,13 +76,39 @@ struct HomeView: View {
         .padding(.horizontal, Theme.pagePadding)
     }
 
-    private func heroItem(_ page: BrowsePage) -> (item: MediaItem, shelf: String)? {
-        for shelf in page.shelves.prefix(4) where shelf.style == .carousel {
-            if let item = shelf.items.first(where: { ($0.kind == .playlist || $0.kind == .album) && !$0.artwork.isEmpty }) {
-                return (item, shelf.title)
+    struct Featured: Equatable {
+        var item: MediaItem
+        var label: String
+    }
+
+    /// Picks the banner: a recommended album or curated playlist, chosen at
+    /// random so it changes between visits. The user's own history ("Listen
+    /// again", tagged with their name) and their own playlists are skipped.
+    static func pickFeatured(_ page: BrowsePage, accountName: String?) -> Featured? {
+        var preferred: [Featured] = [], fallback: [Featured] = []
+        let name = accountName?.trimmingCharacters(in: .whitespaces)
+        func isOwn(_ text: String?) -> Bool {
+            guard let name, !name.isEmpty, let text else { return false }
+            return text.localizedCaseInsensitiveContains(name)
+        }
+        for shelf in page.shelves where shelf.style == .carousel && !isOwn(shelf.strapline) {
+            for item in shelf.items where !item.artwork.isEmpty && !isOwn(item.subtitle) {
+                guard item.kind == .album || item.kind == .playlist || item.kind == .single else { continue }
+                let id = item.browse?.browseId ?? ""
+                // Albums, and playlists / mixes curated by YouTube Music.
+                let curated = item.kind == .album || ["VLRDCLAK", "VLRDTMAK", "VLRDAT", "VLRDEM", "VLRDAMPL"].contains { id.hasPrefix($0) }
+                let f = Featured(item: item, label: shelf.title)
+                if curated { preferred.append(f) } else { fallback.append(f) }
             }
         }
-        return nil
+        return (preferred.isEmpty ? fallback : preferred).randomElement()
+    }
+
+    private func refreshFeatured() {
+        guard let page = loader.page else { return }
+        withAnimation(.easeOut(duration: 0.3)) {
+            featured = Self.pickFeatured(page, accountName: app.auth.account?.name)
+        }
     }
 }
 

@@ -61,10 +61,29 @@ struct QueueList: View {
                                    description: Text("Songs you play will show up here."))
                 .frame(maxHeight: .infinity)
         } else {
+            ScrollViewReader { proxy in
             List {
+                if !p.played.isEmpty {
+                    Section("Played") {
+                        ForEach(Array(p.played.enumerated()), id: \.element.id) { offset, item in
+                            QueueRow(item: item, isCurrent: false, isPlayed: true)
+                                .contentShape(Rectangle())
+                                .onTapGesture(count: 2) { p.jump(to: offset) }
+                                .contextMenu {
+                                    Button("Play Again", systemImage: "play.fill") { p.jump(to: offset) }
+                                    Button("Remove from Queue", systemImage: "minus.circle", role: .destructive) {
+                                        p.remove(at: IndexSet(integer: offset))
+                                    }
+                                    Divider()
+                                    ItemMenu(item: item)
+                                }
+                        }
+                    }
+                }
                 if let cur = p.current {
                     Section("Now Playing") {
                         QueueRow(item: cur, isCurrent: true)
+                            .id(Self.currentRowID)
                     }
                 }
                 if !p.upNext.isEmpty {
@@ -115,6 +134,21 @@ struct QueueList: View {
             }
             .scrollContentBackground(.hidden)
             .listStyle(.sidebar)
+            // Open at the current song, with the last played track peeking in
+            // above it so the (scrollable) history is discoverable.
+            .task { scrollToCurrent(proxy, p) }
+            .onChange(of: p.index) { withAnimation(.smooth) { scrollToCurrent(proxy, p) } }
+            }
+        }
+    }
+
+    private static let currentRowID = "queue-current"
+
+    private func scrollToCurrent(_ proxy: ScrollViewProxy, _ p: PlaybackController) {
+        if let last = p.played.last {
+            proxy.scrollTo(last.id, anchor: .top)
+        } else {
+            proxy.scrollTo(Self.currentRowID, anchor: .top)
         }
     }
 }
@@ -123,6 +157,7 @@ struct QueueRow: View {
     @Environment(AppModel.self) private var app
     let item: MediaItem
     let isCurrent: Bool
+    var isPlayed = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -149,6 +184,8 @@ struct QueueRow: View {
             }
         }
         .padding(.vertical, 2)
+        .saturation(isPlayed ? 0 : 1)
+        .opacity(isPlayed ? 0.45 : 1)
     }
 }
 

@@ -87,6 +87,8 @@ final class PlaybackController {
 
     var current: MediaItem? { queue.indices.contains(index) ? queue[index] : nil }
     var upNext: [MediaItem] { index + 1 < queue.count ? Array(queue[(index + 1)...]) : [] }
+    /// Tracks earlier in the queue that have already played.
+    var played: [MediaItem] { index > 0 ? Array(queue[..<min(index, queue.count)]) : [] }
     var hasNext: Bool { index + 1 < queue.count || repeatMode == .all || radioContinuation != nil || autoplay }
     var currentTime: Double { timeAnchor.time }
 
@@ -227,6 +229,13 @@ final class PlaybackController {
     }
 
     // MARK: - Transport
+
+    /// Development aid for screenshots: moves the queue position without
+    /// starting playback.
+    func debugSetIndex(_ i: Int) {
+        guard queue.indices.contains(i) else { return }
+        index = i
+    }
 
     /// Reloads the current track from scratch (after a session change).
     func retryCurrent() {
