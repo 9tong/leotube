@@ -126,10 +126,13 @@ final class AppModel {
         defer { DebugTour.runIfRequested(self) }
         if let vid = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_PLAY"] {
             showWelcome = false
+            if ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_MUTE"] != nil { engine.setVolume(0) }
             player.playRadio(from: MediaItem(id: vid, kind: .song, title: "Debug track", videoId: vid))
             if let seek = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_SEEK"].flatMap(Double.init) {
                 Task {
-                    try? await Task.sleep(for: .seconds(12))
+                    // Wait for the song itself (not a pre-roll ad) before seeking.
+                    repeat { try? await Task.sleep(for: .seconds(1)) } while player.isAd || player.duration < 60
+                    try? await Task.sleep(for: .seconds(2))
                     player.seek(to: seek)
                 }
             }

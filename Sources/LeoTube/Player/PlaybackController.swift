@@ -28,7 +28,9 @@ enum LyricsState: Equatable {
 final class PlaybackController {
     private(set) var queue: [MediaItem] = []
     private(set) var index: Int = -1
-    private(set) var isPlaying = false
+    private(set) var isPlaying = false {
+        didSet { if isPlaying != oldValue { updateActivity() } }
+    }
     private(set) var isBuffering = false
     private(set) var isLoadingQueue = false
     private(set) var isAd = false
@@ -541,7 +543,22 @@ final class PlaybackController {
         var source: String?
     }
 
+    /// Keeps App Nap from throttling the timers that drive track changes
+    /// while music is playing in the background.
+    @ObservationIgnored private var activity: NSObjectProtocol?
+
+    private func updateActivity() {
+        if isPlaying, activity == nil {
+            activity = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep,
+                                                             reason: "Playing music")
+        } else if !isPlaying, let a = activity {
+            ProcessInfo.processInfo.endActivity(a)
+            activity = nil
+        }
+    }
+
     func saveSession() {
+        guard !AuthManager.isEphemeral else { return }
         let window = max(0, index - 50)
         let slice = Array(queue[window..<min(queue.count, window + 250)])
         let s = Session(queue: slice, index: index - window, time: time(at: .now), source: sourceTitle)

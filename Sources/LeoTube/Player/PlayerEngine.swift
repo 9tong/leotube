@@ -32,8 +32,14 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     private var lastState = EngineState()
     /// Videos already retried with a full page load after an in-app load failed.
     private var pageLoadRetried: Set<String> = []
+    /// The video an "ended" event was already reported for, so a track can
+    /// only finish once however many signals (JS, polling, guard) notice it.
+    private var endedReportedFor: String?
 
     static let debug = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG"] != nil
+    /// Test hook: disables both early-end mechanisms, so a track plays to its
+    /// real end and the web app's autoplay (and the guard) can be exercised.
+    static let debugNoEarlyEnd = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_NO_EARLY_END"] != nil
     var onState: ((EngineState) -> Void)?
     var onEvent: ((Event) -> Void)?
 
@@ -45,6 +51,9 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         config.preferences.isElementFullscreenEnabled = false
         let ucc = WKUserContentController()
         ucc.addUserScript(WKUserScript(source: Self.bridgeScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        if Self.debugNoEarlyEnd {
+            ucc.addUserScript(WKUserScript(source: "window.__ltNoEarlyEnd = true;", injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        }
         config.userContentController = ucc
 
         webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 960, height: 600), configuration: config)
@@ -82,7 +91,10 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     }
 
     func load(videoId: String, playlistId: String?) {
-        if expectedVideoId != videoId { pageLoadRetried.removeAll() }
+        if expectedVideoId != videoId {
+            pageLoadRetried.removeAll()
+            endedReportedFor = nil
+        }
         expectedVideoId = videoId
         loadIssuedAt = Date()
         ensureHosted()
@@ -147,21 +159,39 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         s.error = dict["err"] as? String
 
         // In-app loads can be rejected (e.g. bot checks for signed-out
-        // sessions) where a full page load succeeds: retry once that way.
-        if s.error != nil, let expected = expectedVideoId, s.videoId == expected, !pageLoadRetried.contains(expected) {
+        // sessions) or stall at 0:00 where a full page load succeeds: retry
+        // once that way.
+        let stalled = s.videoId == expectedVideoId && !s.isAd && s.time < 0.5 && (s.buffering || s.duration == 0)
+            && Date().timeIntervalSince(loadIssuedAt) > 8
+        if s.error != nil || stalled, let expected = expectedVideoId, s.videoId == expected, !pageLoadRetried.contains(expected) {
+            if Self.debug { NSLog("[engine] retrying %@ with a page load (%@)", expected, s.error ?? "stalled") }
             pageLoadRetried.insert(expected)
             loadIssuedAt = Date()
             loadPage(expected)
             return
         }
+        // Still stuck after the page-load retry: surface it as an error so the
+        // queue can move on (or stop after repeated failures).
+        if stalled, s.error == nil, let expected = expectedVideoId, pageLoadRetried.contains(expected),
+           Date().timeIntervalSince(loadIssuedAt) > 15 {
+            s.error = "The song didn’t start"
+        }
 
-        // The web app may advance on its own (its autoplay). Our queue is the
-        // source of truth: treat that as "track finished" or re-assert.
+        // Backup for the bridge's early pause (its timeupdate events can be
+        // throttled in the background): finish the track ourselves in its last
+        // second, before the web app's own autoplay can start something else.
+        if !Self.debugNoEarlyEnd, let expected = expectedVideoId, s.videoId == expected, !s.isAd, !s.paused,
+           s.duration > 2, s.duration - s.time < 0.9 {
+            reportEnded(pausing: true)
+        }
+
+        // Our queue is the source of truth. If the web app is still showing a
+        // different video well after our load, re-assert ours. (This never
+        // advances the queue — that only happens via reportEnded.)
         if let expected = expectedVideoId, let vid = s.videoId, vid != expected, !s.isAd,
            Date().timeIntervalSince(loadIssuedAt) > 4 {
-            let wasNearEnd = lastState.duration > 0 && lastState.duration - lastState.time < 6
             loadIssuedAt = Date()
-            if wasNearEnd { onEvent?(.ended) } else { load(videoId: expected, playlistId: nil) }
+            load(videoId: expected, playlistId: nil)
             return
         }
         // Never report a foreign video's progress.
@@ -183,7 +213,18 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         switch type {
         case "ended":
             if let vid = body["vid"] as? String, let expected = expectedVideoId, vid != expected { return }
-            onEvent?(.ended)
+            reportEnded(pausing: false)
+        case "foreign":
+            // The web app started a video we didn't ask for (its autoplay); the
+            // bridge has already paused and muted it. If our track was at its
+            // end, that's a missed "ended"; otherwise put our track back.
+            guard let expected = expectedVideoId else { return }
+            let nearEnd = lastState.videoId == expected && lastState.duration > 0 && lastState.duration - lastState.time < 6
+            if nearEnd {
+                reportEnded(pausing: false)
+            } else if Date().timeIntervalSince(loadIssuedAt) > 1.5 {
+                load(videoId: expected, playlistId: nil)
+            }
         case "play": onEvent?(.play)
         case "pause": onEvent?(.pause)
         case "log": NSLog("[LeoTube web] %@", String(describing: body["msg"] ?? ""))
@@ -191,8 +232,24 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         }
     }
 
+    private func reportEnded(pausing: Bool) {
+        guard let expected = expectedVideoId, endedReportedFor != expected else { return }
+        endedReportedFor = expected
+        if pausing { pause() }
+        if Self.debug { NSLog("[engine] ended %@ (native=%d)", expected, pausing ? 1 : 0) }
+        onEvent?(.ended)
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        if expectedVideoId == nil { run("window.__lt && window.__lt.pause()") }
+        if let expected = expectedVideoId {
+            // A full page load starts a fresh bridge: tell it which video is ours.
+            Task {
+                _ = try? await webView.callAsyncJavaScript("if (window.__lt) window.__lt.expected = id",
+                                                          arguments: ["id": expected], in: nil, contentWorld: .page)
+            }
+        } else {
+            run("window.__lt && window.__lt.pause()")
+        }
     }
 
     // MARK: - Bridge
@@ -209,7 +266,7 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         currentVid() { try { const p = this.player(); return p && p.getVideoData ? p.getVideoData().video_id : null; } catch (e) { return null; } },
         load(id, vol) {
           const p = this.player();
-          this.expected = id; this.endSent = false;
+          this.expected = id; this.endSent = false; this.lastForeign = null;
           if (typeof vol === 'number') this.vol = vol;
           const app = document.querySelector('ytmusic-app');
           if (app && p) {
@@ -268,16 +325,30 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
       const nearAd = () => lt.isAd() || Date.now() - lt.adSeenAt < 2500;
       document.addEventListener('timeupdate', (e) => {
         const v = e.target;
-        if (!(v instanceof HTMLMediaElement) || lt.endSent || nearAd() || !lt.expected) return;
+        if (!(v instanceof HTMLMediaElement) || lt.endSent || nearAd() || !lt.expected || window.__ltNoEarlyEnd) return;
         if (isFinite(v.duration) && v.duration > 2 && v.duration - v.currentTime < 0.6) {
           lt.endSent = true; v.pause();
           post({ type: 'ended', vid: lt.currentVid() });
         }
       }, true);
       document.addEventListener('ended', (e) => {
-        if (!(e.target instanceof HTMLMediaElement) || lt.endSent || nearAd()) return;
+        if (!(e.target instanceof HTMLMediaElement) || lt.endSent || nearAd() || window.__ltNoEarlyEnd) return;
         lt.endSent = true; post({ type: 'ended', vid: lt.currentVid() });
       }, true);
+      // Guard: if the web app starts a video we didn't ask for (its own
+      // autoplay / queue), silence it at once and let the native queue decide.
+      const guardForeign = (e) => {
+        const v = e.target;
+        if (!(v instanceof HTMLMediaElement) || !lt.expected || lt.isAd()) return;
+        const vid = lt.currentVid();
+        if (vid && vid !== lt.expected) {
+          v.muted = true; v.pause(); lt.mutedForeign = true;
+          if (lt.lastForeign !== vid) { lt.lastForeign = vid; post({ type: 'foreign', vid: vid }); }
+        } else if (vid === lt.expected && lt.mutedForeign) {
+          lt.mutedForeign = false; lt.lastForeign = null; v.muted = false;
+        }
+      };
+      ['play', 'playing', 'loadeddata', 'timeupdate'].forEach((t) => document.addEventListener(t, guardForeign, true));
       document.addEventListener('play', (e) => { if (e.target instanceof HTMLMediaElement) post({ type: 'play' }); }, true);
       document.addEventListener('pause', (e) => { if (e.target instanceof HTMLMediaElement) post({ type: 'pause' }); }, true);
 
