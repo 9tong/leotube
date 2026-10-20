@@ -134,15 +134,13 @@ struct SearchResultsView: View {
 
     private func filterBar(_ chips: [Chip]) -> some View {
         ScrollView(.horizontal) {
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    chipButton("All", selected: filter == nil) { filter = nil }
-                    ForEach(chips) { chip in
-                        chipButton(chip.title, selected: filter?.title == chip.title) { select(chip) }
-                    }
+            HStack(spacing: 8) {
+                chipButton("All", selected: filter == nil) { filter = nil }
+                ForEach(chips) { chip in
+                    chipButton(chip.title, selected: filter?.title == chip.title) { select(chip) }
                 }
-                .padding(.vertical, 4)
             }
+            .padding(.vertical, 4)
         }
         .scrollIndicators(.never)
     }

@@ -5,7 +5,6 @@ import YTMusicKit
 struct NowPlayingView: View {
     @Environment(AppModel.self) private var app
     @State private var tint: Color = Theme.accent
-    @State private var drift = false
 
     var body: some View {
         let p = app.player
@@ -88,7 +87,6 @@ struct NowPlayingView: View {
         .onExitCommand { close() }
         .onAppear {
             if app.inspectorTab == .related { app.inspectorTab = .queue }
-            withAnimation(.easeInOut(duration: 14).repeatForever(autoreverses: true)) { drift = true }
         }
     }
 
@@ -100,8 +98,8 @@ struct NowPlayingView: View {
         ZStack {
             Color.black
             ArtworkView(artwork: item?.artwork, size: 300, cornerRadius: 0)
-                .scaleEffect(drift ? 2.1 : 1.7)
-                .rotationEffect(.degrees(drift ? 12 : -6))
+                .scaleEffect(1.9)
+                .rotationEffect(.degrees(4))
                 .blur(radius: 90)
                 .opacity(0.85)
             LinearGradient(colors: [tint.opacity(0.55), .black.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)

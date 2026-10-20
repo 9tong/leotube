@@ -51,6 +51,9 @@ final class AppModel {
     var searchText = ""
     var submittedQuery = ""
     var showQueuePopover = false
+    /// False while the window is hidden, minimised or fully covered, so
+    /// periodic UI updates (progress, equalizer) can pause in the background.
+    var isWindowVisible = true
     var showInspector = false {
         didSet { updateSidebarForSpace() }
     }

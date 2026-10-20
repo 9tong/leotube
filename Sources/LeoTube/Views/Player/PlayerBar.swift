@@ -56,7 +56,7 @@ struct PlayerBar: View {
         .frame(maxWidth: .infinity)
         .frame(height: layout == .mini ? 68 : Theme.playerBarHeight)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: layout == .mini ? 22 : 26, style: .continuous))
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
     }
 
@@ -216,7 +216,7 @@ private struct MiniProgress: View {
 
     var body: some View {
         let p = app.player
-        TimelineView(.periodic(from: .now, by: 0.5)) { ctx in
+        TimelineView(.animation(minimumInterval: 1, paused: !(p.isPlaying && app.isWindowVisible))) { ctx in
             let fraction = p.duration > 0 ? min(1, p.time(at: ctx.date) / p.duration) : 0
             GeometryReader { geo in
                 ZStack(alignment: .leading) {

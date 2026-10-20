@@ -59,7 +59,7 @@ struct PlaybackProgress: View {
 
     var body: some View {
         let p = app.player
-        TimelineView(.periodic(from: .now, by: 0.25)) { ctx in
+        TimelineView(.animation(minimumInterval: 0.5, paused: !(p.isPlaying && app.isWindowVisible))) { ctx in
             let t = scrubTime ?? p.time(at: ctx.date)
             let d = max(p.duration, 0.01)
             HStack(spacing: 10) {

@@ -82,6 +82,11 @@ struct RootView: View {
         .preferredColorScheme(app.appearance.colorScheme)
         .frame(minWidth: 600, minHeight: 500)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { app.windowWidth = $0 }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didChangeOcclusionStateNotification)) { note in
+            guard let window = note.object as? NSWindow, window.isVisible, window.frame.width > 400, window.alphaValue > 0 else { return }
+            let visible = window.occlusionState.contains(.visible)
+            if app.isWindowVisible != visible { app.isWindowVisible = visible }
+        }
     }
 
     @ViewBuilder private var detailRoot: some View {

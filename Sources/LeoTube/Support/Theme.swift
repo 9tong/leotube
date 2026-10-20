@@ -160,23 +160,20 @@ struct PlayCircleButton: View {
     }
 }
 
-/// Animated "now playing" equalizer bars.
+/// Animated "now playing" indicator. A symbol effect is animated by Core
+/// Animation, so it doesn't re-render the SwiftUI view graph every frame.
 struct EqualizerBars: View {
+    @Environment(AppModel.self) private var app
     var animating: Bool
     var color: Color = Theme.accent
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 20, paused: !animating)) { ctx in
-            let t = ctx.date.timeIntervalSinceReferenceDate
-            HStack(alignment: .bottom, spacing: 2) {
-                ForEach(0..<3, id: \.self) { i in
-                    let phase = t * (5.5 + Double(i) * 1.7) + Double(i) * 1.3
-                    let h = animating ? 0.3 + 0.7 * abs(sin(phase)) : 0.3
-                    Capsule().fill(color).frame(width: 3, height: 14 * h)
-                }
-            }
-            .frame(width: 14, height: 14, alignment: .bottom)
-        }
+        Image(systemName: "waveform")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(color)
+            .symbolEffect(.variableColor.iterative.dimInactiveLayers, options: .repeating,
+                          isActive: animating && app.isWindowVisible)
+            .frame(width: 16, height: 14)
     }
 }
 

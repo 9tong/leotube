@@ -7,7 +7,7 @@ struct WelcomeView: View {
 
     var body: some View {
         ZStack {
-            TimelineView(.animation(minimumInterval: 1 / 30)) { ctx in
+            TimelineView(.animation(minimumInterval: 1 / 30, paused: !app.isWindowVisible)) { ctx in
                 let t = ctx.date.timeIntervalSinceReferenceDate
                 MeshGradient(width: 3, height: 3, points: [
                     [0, 0], [0.5, 0], [1, 0],

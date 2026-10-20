@@ -46,15 +46,20 @@ struct CarouselShelf: View {
             HStack(alignment: .bottom) {
                 ShelfHeader(shelf: shelf)
                 if shelf.items.count > 3 {
-                    HStack(spacing: 8) {
-                        GlassIconButton(systemName: "chevron.left", size: 30, help: "Scroll back") { page(-1) }
-                            .disabled(atStart)
-                            .opacity(atStart ? 0.35 : 1)
-                        GlassIconButton(systemName: "chevron.right", size: 30, help: "Scroll forward") { page(1) }
-                            .disabled(atEnd)
-                            .opacity(atEnd ? 0.35 : 1)
+                    ZStack {
+                        Color.clear.frame(width: 68, height: 30)
+                        if hovering {
+                            HStack(spacing: 8) {
+                                GlassIconButton(systemName: "chevron.left", size: 30, help: "Scroll back") { page(-1) }
+                                    .disabled(atStart)
+                                    .opacity(atStart ? 0.35 : 1)
+                                GlassIconButton(systemName: "chevron.right", size: 30, help: "Scroll forward") { page(1) }
+                                    .disabled(atEnd)
+                                    .opacity(atEnd ? 0.35 : 1)
+                            }
+                            .transition(.opacity)
+                        }
                     }
-                    .opacity(hovering ? 1 : 0.0001)
                     .padding(.leading, 8)
                 }
             }

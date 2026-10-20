@@ -73,23 +73,21 @@ struct LibraryView: View {
 
     private var tabBar: some View {
         ScrollView(.horizontal) {
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    ForEach(LibraryTab.allCases) { t in
-                        Button {
-                            withAnimation(.spring(duration: 0.3)) { tab = t }
-                        } label: {
-                            Label(t.rawValue, systemImage: t.symbol)
-                                .font(.system(size: 13, weight: .semibold))
-                                .padding(.horizontal, 14).padding(.vertical, 8)
-                                .foregroundStyle(tab == t ? .white : .primary)
-                        }
-                        .buttonStyle(.plain)
-                        .glassEffect(tab == t ? .regular.tint(Theme.accent).interactive() : .regular.interactive(), in: Capsule())
+            HStack(spacing: 8) {
+                ForEach(LibraryTab.allCases) { t in
+                    Button {
+                        withAnimation(.spring(duration: 0.3)) { tab = t }
+                    } label: {
+                        Label(t.rawValue, systemImage: t.symbol)
+                            .font(.system(size: 13, weight: .semibold))
+                            .padding(.horizontal, 14).padding(.vertical, 8)
+                            .foregroundStyle(tab == t ? .white : .primary)
                     }
+                    .buttonStyle(.plain)
+                    .glassEffect(tab == t ? .regular.tint(Theme.accent).interactive() : .regular.interactive(), in: Capsule())
                 }
-                .padding(.vertical, 4)
             }
+            .padding(.vertical, 4)
             .padding(.horizontal, Theme.pagePadding)
         }
         .scrollIndicators(.never)

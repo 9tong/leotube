@@ -125,25 +125,23 @@ struct ChipBar: View {
 
     var body: some View {
         ScrollView(.horizontal) {
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
-                    ForEach(chips) { chip in
-                        let selected = isSelected(chip)
-                        Button {
-                            withAnimation(.spring(duration: 0.3)) { onSelect(chip) }
-                        } label: {
-                            Text(chip.title)
-                                .font(.system(size: 13, weight: .semibold))
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 7)
-                                .foregroundStyle(selected ? .white : .primary)
-                        }
-                        .buttonStyle(.plain)
-                        .glassEffect(selected ? .regular.tint(Theme.accent).interactive() : .regular.interactive(), in: Capsule())
+            HStack(spacing: 8) {
+                ForEach(chips) { chip in
+                    let selected = isSelected(chip)
+                    Button {
+                        withAnimation(.spring(duration: 0.3)) { onSelect(chip) }
+                    } label: {
+                        Text(chip.title)
+                            .font(.system(size: 13, weight: .semibold))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 7)
+                            .foregroundStyle(selected ? .white : .primary)
                     }
+                    .buttonStyle(.plain)
+                    .glassEffect(selected ? .regular.tint(Theme.accent).interactive() : .regular.interactive(), in: Capsule())
                 }
-                .padding(.vertical, 4)
             }
+            .padding(.vertical, 4)
         }
         .scrollIndicators(.never)
     }
