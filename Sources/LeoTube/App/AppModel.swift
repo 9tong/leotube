@@ -54,6 +54,9 @@ final class AppModel {
     /// False while the window is hidden, minimised or fully covered, so
     /// periodic UI updates (progress, equalizer) can pause in the background.
     var isWindowVisible = true
+    /// The window hosting the main UI; other windows (Settings, sheets, the
+    /// hidden player host) must not affect `isWindowVisible`.
+    @ObservationIgnored weak var mainWindow: NSWindow?
     var showInspector = false {
         didSet { updateSidebarForSpace() }
     }

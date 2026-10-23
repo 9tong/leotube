@@ -41,20 +41,21 @@ struct PlayerBar: View {
                     trailing(volume: false)
                 }
             case .mini:
-                HStack(spacing: 10) {
-                    nowPlaying(p, showLike: false, artworkSize: 44)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    MiniTransport()
-                    queueButton
+                // Two rows so the full progress bar (times + scrubbing) fits.
+                VStack(spacing: 4) {
+                    HStack(spacing: 10) {
+                        nowPlaying(p, showLike: false, artworkSize: 44)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        MiniTransport()
+                        queueButton
+                    }
+                    PlaybackProgress(labelFont: .system(size: 10, weight: .medium).monospacedDigit(), height: 3)
                 }
-                .padding(.bottom, 6)
-                .frame(maxHeight: .infinity)
-                .overlay(alignment: .bottom) { MiniProgress().padding(.bottom, 6) }
             }
         }
         .padding(.horizontal, 14)
         .frame(maxWidth: .infinity)
-        .frame(height: layout == .mini ? 68 : Theme.playerBarHeight)
+        .frame(height: layout == .mini ? 92 : Theme.playerBarHeight)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
@@ -207,26 +208,5 @@ private struct MiniTransport: View {
             .buttonStyle(PressScaleStyle())
         }
         .disabled(p.current == nil)
-    }
-}
-
-/// Hairline progress indicator along the bottom of the mini player bar.
-private struct MiniProgress: View {
-    @Environment(AppModel.self) private var app
-
-    var body: some View {
-        let p = app.player
-        TimelineView(.animation(minimumInterval: 1, paused: !(p.isPlaying && app.isWindowVisible))) { ctx in
-            let fraction = p.duration > 0 ? min(1, p.time(at: ctx.date) / p.duration) : 0
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.primary.opacity(0.15))
-                    Capsule().fill(Theme.accentGradient).frame(width: geo.size.width * fraction)
-                }
-            }
-            .frame(height: 3)
-            .padding(.horizontal, 20)
-        }
-        .opacity(p.current == nil ? 0 : 1)
     }
 }
