@@ -531,6 +531,15 @@ final class PlaybackController {
             isPlaying = true
         case .pause:
             break
+        case .remote(let action, let t):
+            switch action {
+            case "next": next()
+            case "previous": previous()
+            case "play": resume()
+            case "pause": pause()
+            case "seek": if let t { seek(to: t) }
+            default: break
+            }
         }
     }
 

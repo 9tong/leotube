@@ -21,7 +21,11 @@ struct EngineState: Equatable {
 /// it is driven entirely through a small JavaScript bridge.
 @MainActor
 final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
-    enum Event { case ended, play, pause }
+    enum Event {
+        case ended, play, pause
+        /// A media key / Control Center command delivered through the web page.
+        case remote(String, Double?)
+    }
 
     let webView: WKWebView
     private let hostWindow: NSWindow
@@ -111,6 +115,29 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         var c = URLComponents(string: "https://music.youtube.com/watch")!
         c.queryItems = [URLQueryItem(name: "v", value: videoId)]
         webView.load(URLRequest(url: c.url!))
+    }
+
+    /// Metadata shown by the system Now Playing UI when WebKit owns it.
+    private var nowPlayingMetadata: [String: Any]?
+
+    func setNowPlaying(title: String, artist: String, album: String?, artworkURL: URL?) {
+        var m: [String: Any] = ["title": title, "artist": artist, "album": album ?? ""]
+        if let url = artworkURL { m["artwork"] = [["src": url.absoluteString, "sizes": "544x544"]] }
+        nowPlayingMetadata = m
+        applyNowPlayingMetadata()
+    }
+
+    private func applyNowPlayingMetadata() {
+        guard let m = nowPlayingMetadata else { return }
+        Task {
+            let r = try? await webView.callAsyncJavaScript("""
+                if (!window.__lt || !window.__lt.setMetadata) return 'no bridge';
+                window.__lt.setMetadata(m);
+                const md = navigator.mediaSession.metadata;
+                return md ? ('set: ' + md.title) : 'metadata still null';
+                """, arguments: ["m": m], in: nil, contentWorld: .page)
+            if Self.debug { NSLog("[engine] now playing metadata: %@", String(describing: r ?? "error")) }
+        }
     }
 
     func play() { run("window.__lt && window.__lt.play()") }
@@ -225,6 +252,10 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
             } else if Date().timeIntervalSince(loadIssuedAt) > 1.5 {
                 load(videoId: expected, playlistId: nil)
             }
+        case "remote":
+            guard let action = body["action"] as? String else { return }
+            if Self.debug { NSLog("[remote] %@ (via web page)", action) }
+            onEvent?(.remote(action, (body["t"] as? NSNumber)?.doubleValue))
         case "play": onEvent?(.play)
         case "pause": onEvent?(.pause)
         case "log": NSLog("[LeoTube web] %@", String(describing: body["msg"] ?? ""))
@@ -246,6 +277,7 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
             Task {
                 _ = try? await webView.callAsyncJavaScript("if (window.__lt) window.__lt.expected = id",
                                                           arguments: ["id": expected], in: nil, contentWorld: .page)
+                applyNowPlayingMetadata()
             }
         } else {
             run("window.__lt && window.__lt.pause()")
@@ -352,11 +384,27 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
       document.addEventListener('play', (e) => { if (e.target instanceof HTMLMediaElement) post({ type: 'play' }); }, true);
       document.addEventListener('pause', (e) => { if (e.target instanceof HTMLMediaElement) post({ type: 'pause' }); }, true);
 
-      // Keep media keys and Now Playing under native control.
+      // macOS usually makes WebKit's media process the system "Now Playing"
+      // app, so media keys and Control Center commands arrive here. Forward
+      // them to the native queue, and stop the web app from taking them over
+      // (left unhandled, "next track" just restarted the current song).
       try {
-        if (navigator.mediaSession) {
-          navigator.mediaSession.setActionHandler = function () {};
-          Object.defineProperty(navigator.mediaSession, 'metadata', { set() {}, get() { return null; } });
+        const ms = navigator.mediaSession;
+        if (ms) {
+          const setHandler = ms.setActionHandler.bind(ms);
+          const metaDesc = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(ms), 'metadata');
+          [['play', 'play'], ['pause', 'pause'], ['nexttrack', 'next'], ['previoustrack', 'previous']].forEach(([action, name]) => {
+            try { setHandler(action, () => post({ type: 'remote', action: name })); } catch (e) {}
+          });
+          try { setHandler('seekto', (d) => post({ type: 'remote', action: 'seek', t: d.seekTime })); } catch (e) {}
+          ms.setActionHandler = function () {};
+          // The web app can't set metadata; the native side does, via setMetadata.
+          Object.defineProperty(ms, 'metadata', {
+            configurable: true, set() {}, get() { return metaDesc ? metaDesc.get.call(ms) : null; }
+          });
+          lt.setMetadata = (m) => {
+            try { if (metaDesc) metaDesc.set.call(ms, m ? new MediaMetadata(m) : null); } catch (e) {}
+          };
         }
       } catch (e) {}
 

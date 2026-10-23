@@ -15,8 +15,14 @@ final class NowPlayingCenter {
         c.playCommand.addTarget { [weak player] _ in player?.resume(); return .success }
         c.pauseCommand.addTarget { [weak player] _ in player?.pause(); return .success }
         c.togglePlayPauseCommand.addTarget { [weak player] _ in player?.togglePlayPause(); return .success }
-        c.nextTrackCommand.addTarget { [weak player] _ in player?.next(); return .success }
-        c.previousTrackCommand.addTarget { [weak player] _ in player?.previous(); return .success }
+        c.nextTrackCommand.addTarget { [weak player] _ in
+            if PlayerEngine.debug { NSLog("[remote] nextTrack") }
+            player?.next(); return .success
+        }
+        c.previousTrackCommand.addTarget { [weak player] _ in
+            if PlayerEngine.debug { NSLog("[remote] previousTrack") }
+            player?.previous(); return .success
+        }
         c.changePlaybackPositionCommand.addTarget { [weak player] e in
             guard let e = e as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
             player?.seek(to: e.positionTime)
@@ -56,6 +62,7 @@ final class NowPlayingCenter {
         ]
         if let album = item.album?.name { info[MPMediaItemPropertyAlbumTitle] = album }
         let url = item.artwork.url(size: 600)
+        p.engine.setNowPlaying(title: item.title, artist: item.artistLine, album: item.album?.name, artworkURL: url)
         if url == artworkURL, let artwork { info[MPMediaItemPropertyArtwork] = artwork }
         center.nowPlayingInfo = info
         center.playbackState = p.isPlaying ? .playing : .paused
