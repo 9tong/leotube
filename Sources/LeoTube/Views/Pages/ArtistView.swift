@@ -30,9 +30,9 @@ struct ArtistView: View {
                                           onMore: top.more.map { e in { app.handle(e, title: top.title) } })
                                 .padding(.horizontal, 12)
                             ForEach(Array(top.items.enumerated()), id: \.element.id) { idx, item in
-                                TrackRow(item: item, number: idx + 1, showAlbum: true) {
+                                TrackRow(item: item, number: idx + 1, showAlbum: true, onPlay: {
                                     app.player.play(items: top.items, startAt: idx, source: "\(header.title) · Top songs")
-                                }
+                                })
                             }
                         }
                         .padding(.horizontal, Theme.pagePadding - 12)

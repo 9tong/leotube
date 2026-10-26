@@ -146,13 +146,13 @@ struct ListShelf: View {
             let items = limit.map { Array(shelf.items.prefix($0)) } ?? shelf.items
             VStack(spacing: 2) {
                 ForEach(Array(items.enumerated()), id: \.element.id) { idx, item in
-                    TrackRow(item: item, number: playsAsList ? idx + 1 : nil, showAlbum: true) {
+                    TrackRow(item: item, number: playsAsList ? idx + 1 : nil, showAlbum: true, onPlay: {
                         if playsAsList, item.videoId != nil {
                             app.player.play(items: shelf.items, startAt: idx, source: shelf.title.isEmpty ? nil : shelf.title)
                         } else {
                             app.open(item)
                         }
-                    }
+                    })
                 }
             }
         }
