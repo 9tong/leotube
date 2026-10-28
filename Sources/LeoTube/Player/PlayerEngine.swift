@@ -55,17 +55,18 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         config.preferences.isElementFullscreenEnabled = false
         let ucc = WKUserContentController()
         ucc.addUserScript(WKUserScript(source: Self.bridgeScript, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        ucc.addUserScript(WKUserScript(source: Self.quietPageScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         if Self.debugNoEarlyEnd {
             ucc.addUserScript(WKUserScript(source: "window.__ltNoEarlyEnd = true;", injectionTime: .atDocumentStart, forMainFrameOnly: true))
         }
         config.userContentController = ucc
 
-        webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 960, height: 600), configuration: config)
+        webView = WKWebView(frame: NSRect(origin: .zero, size: Self.hostSize), configuration: config)
         webView.customUserAgent = YTMusicClient.userAgent
 
         // Offscreen host window so the page counts as "in a window" (required
         // for media playback) without ever being visible to the user.
-        hostWindow = NSWindow(contentRect: NSRect(x: -30000, y: -30000, width: 960, height: 600),
+        hostWindow = NSWindow(contentRect: NSRect(origin: NSPoint(x: -30000, y: -30000), size: Self.hostSize),
                               styleMask: [.borderless], backing: .buffered, defer: false)
         hostWindow.isReleasedWhenClosed = false
         hostWindow.isExcludedFromWindowsMenu = true
@@ -225,6 +226,9 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         if let expected = expectedVideoId, s.videoId != nil, s.videoId != expected, !s.isAd {
             s.time = 0; s.duration = 0
         }
+        if Self.debug, let vw = dict["vw"] as? NSNumber, let vh = dict["vh"] as? NSNumber, vw.intValue > 0 {
+            NSLog("[engine] video %dx%d", vw.intValue, vh.intValue)
+        }
         if Self.debug { NSLog("[engine] ready=%d t=%.1f d=%.1f paused=%d buf=%d vid=%@ expected=%@ ad=%d err=%@ url=%@", s.ready ? 1 : 0, s.time, s.duration, s.paused ? 1 : 0, s.buffering ? 1 : 0, s.videoId ?? "-", expectedVideoId ?? "-", s.isAd ? 1 : 0, s.error ?? "-", webView.url?.absoluteString ?? "-") }
         if s != lastState {
             lastState = s
@@ -286,6 +290,26 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
 
     // MARK: - Bridge
 
+    /// Kept small on purpose: YouTube sizes the *video* stream to the player,
+    /// so a small invisible player decodes far fewer pixels. Audio quality is
+    /// chosen independently and is unaffected.
+    private static let hostSize = NSSize(width: 480, height: 270)
+
+    /// Nobody ever sees the web app, so stop it from drawing: hide its UI and
+    /// disable its animations. Otherwise its progress bar, spinners and video
+    /// frames keep WebKit and the window server busy while music plays, which
+    /// made scrolling elsewhere in LeoTube stutter.
+    private static let quietPageScript = #"""
+    (function () {
+      const style = document.createElement('style');
+      style.textContent = `
+        *, *::before, *::after { animation: none !important; transition: none !important; }
+        html, body, ytmusic-app { visibility: hidden !important; }
+      `;
+      (document.head || document.documentElement).appendChild(style);
+    })();
+    """#
+
     private static let bridgeScript = #"""
     (function () {
       if (window.__lt) return;
@@ -342,6 +366,7 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
             buffering: v ? (v.readyState < 3 && !v.paused) : false,
             vid: this.currentVid(),
             ad: this.isAd(),
+            vw: v ? v.videoWidth : 0, vh: v ? v.videoHeight : 0,
             err: err
           };
         }

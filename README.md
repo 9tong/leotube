@@ -85,6 +85,7 @@ swift scripts/prepare-icon.swift Resources/AppIcon-source.png Resources/AppIcon.
 | `LEOTUBE_DEBUG_TOUR_SIZE=<w>x<h>` | Window size for the tour, e.g. `730x900` to check Split View layouts. |
 | `LEOTUBE_EPHEMERAL=1` | Uses a throwaway signed-out session, so development runs never touch your real account. |
 | `LEOTUBE_DEBUG_PLAY=<videoId>` | Starts playback at launch. Add `LEOTUBE_DEBUG_SEEK=<seconds>` to jump near the end once any ad has finished, and `LEOTUBE_DEBUG_MUTE=1` to keep it silent. |
+| `LEOTUBE_DEBUG_OPEN_QUEUE=1` | With `LEOTUBE_DEBUG_PLAY`, opens the queue pop-up. Add `LEOTUBE_DEBUG_SCROLLTEST=1` to time scrolling it while playing and then while paused. |
 | `LEOTUBE_DEBUG_NO_EARLY_END=1` | Lets songs play to their real end, to test how LeoTube handles the web player's own autoplay. |
 
 ## Notes

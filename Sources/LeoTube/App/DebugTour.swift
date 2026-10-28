@@ -90,4 +90,39 @@ enum DebugTour {
         try? rep.representation(using: .png, properties: [:])?.write(to: url)
         NSLog("[tour] wrote %@", url.path)
     }
+
+    /// Scrolls the queue pop-up's list at 60 fps for 6 s and reports frames
+    /// that took noticeably longer than one display frame (hitches).
+    static func scrollTest(label: String) async {
+        guard let pop = NSApp.windows.first(where: { $0.isVisible && String(describing: type(of: $0)).contains("Popover") }),
+              let scroll = findScrollView(pop.contentView) else { NSLog("[scroll] no popover list"); return }
+        let clip = scroll.contentView
+        let maxY = max(0, (scroll.documentView?.frame.height ?? 0) - clip.bounds.height)
+        var y: CGFloat = 0, dir: CGFloat = 1
+        var last = CACurrentMediaTime(), hitches = 0, worst = 0.0, frames = 0, slow = 0, total = 0.0
+        let end = last + 6
+        while CACurrentMediaTime() < end {
+            y += dir * 6
+            if y > maxY || y < 0 { dir = -dir; y = min(max(y, 0), maxY) }
+            clip.scroll(to: NSPoint(x: 0, y: y))
+            scroll.reflectScrolledClipView(clip)
+            try? await Task.sleep(for: .milliseconds(16))
+            let now = CACurrentMediaTime()
+            let dt = (now - last) * 1000
+            if dt > 33 { hitches += 1 }
+            if dt > 20 { slow += 1 }
+            total += dt
+            worst = max(worst, dt)
+            frames += 1
+            last = now
+        }
+        NSLog("[scroll] %@: %d frames, avg %.1f ms, %d slow (>20ms), %d hitches (>33ms), worst %.0f ms", label, frames, total / Double(max(frames, 1)), slow, hitches, worst)
+    }
+
+    private static func findScrollView(_ view: NSView?) -> NSScrollView? {
+        guard let view else { return nil }
+        if let s = view as? NSScrollView, (s.documentView?.frame.height ?? 0) > s.contentView.bounds.height { return s }
+        for sub in view.subviews { if let s = findScrollView(sub) { return s } }
+        return nil
+    }
 }

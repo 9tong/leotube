@@ -134,6 +134,18 @@ final class AppModel {
             showWelcome = false
             if ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_MUTE"] != nil { engine.setVolume(0) }
             player.playRadio(from: MediaItem(id: vid, kind: .song, title: "Debug track", videoId: vid))
+            if ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_OPEN_QUEUE"] != nil {
+                Task {
+                    try? await Task.sleep(for: .seconds(8))
+                    showQueuePopover = true
+                    guard ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_SCROLLTEST"] != nil else { return }
+                    try? await Task.sleep(for: .seconds(30))
+                    await DebugTour.scrollTest(label: "playing")
+                    player.pause()
+                    try? await Task.sleep(for: .seconds(3))
+                    await DebugTour.scrollTest(label: "paused")
+                }
+            }
             if let seek = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_SEEK"].flatMap(Double.init) {
                 Task {
                     // Wait for the song itself (not a pre-roll ad) before seeking.
