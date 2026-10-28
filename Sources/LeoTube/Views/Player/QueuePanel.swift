@@ -159,7 +159,11 @@ struct QueueRow: View {
     let isCurrent: Bool
     var isPlayed = false
 
+    /// Development aid for the scroll test.
+    nonisolated(unsafe) static var debugBodyCount = 0
+
     var body: some View {
+        let _ = Self.debugBodyCount += 1
         HStack(spacing: 10) {
             ZStack {
                 ArtworkView(artwork: item.artwork, size: 96, cornerRadius: 5).frame(width: 40, height: 40)

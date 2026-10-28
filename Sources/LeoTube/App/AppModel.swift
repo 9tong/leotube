@@ -137,9 +137,21 @@ final class AppModel {
             if ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_OPEN_QUEUE"] != nil {
                 Task {
                     try? await Task.sleep(for: .seconds(8))
+                    if let i = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_QUEUE_AT"].flatMap(Int.init) {
+                        player.debugSetIndex(i)
+                    }
                     showQueuePopover = true
+                    // The popover sometimes doesn't attach on the first try at launch.
+                    for _ in 0..<5 where !NSApp.windows.contains(where: { $0.isVisible && "\(type(of: $0))".contains("Popover") }) {
+                        try? await Task.sleep(for: .seconds(1))
+                        showQueuePopover = false
+                        try? await Task.sleep(for: .milliseconds(300))
+                        showQueuePopover = true
+                    }
                     guard ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_SCROLLTEST"] != nil else { return }
                     try? await Task.sleep(for: .seconds(30))
+                    // Test runs start behind other apps; animate as if the window were in view.
+                    isWindowVisible = true
                     await DebugTour.scrollTest(label: "playing")
                     player.pause()
                     try? await Task.sleep(for: .seconds(3))

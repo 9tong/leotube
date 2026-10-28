@@ -95,28 +95,55 @@ enum DebugTour {
     /// that took noticeably longer than one display frame (hitches).
     static func scrollTest(label: String) async {
         guard let pop = NSApp.windows.first(where: { $0.isVisible && String(describing: type(of: $0)).contains("Popover") }),
-              let scroll = findScrollView(pop.contentView) else { NSLog("[scroll] no popover list"); return }
+              let scroll = findScrollView(pop.contentView) else {
+            NSLog("[scroll] no popover list; windows: %@", NSApp.windows.map { "\(type(of: $0)) visible=\($0.isVisible)" }.joined(separator: ", "))
+            return
+        }
+        if let shot = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_QUEUE_SHOT"] {
+            scroll.contentView.scroll(to: NSPoint(x: 0, y: 150))
+            scroll.reflectScrolledClipView(scroll.contentView)
+            try? await Task.sleep(for: .seconds(1))
+            snapshot(window: pop, to: URL(fileURLWithPath: shot))
+            try? await Task.sleep(for: .milliseconds(200))
+            snapshot(window: pop, to: URL(fileURLWithPath: shot.replacingOccurrences(of: ".png", with: "-b.png")))
+        }
+        NSLog("[scroll] start %@", label)
         let clip = scroll.contentView
         let maxY = max(0, (scroll.documentView?.frame.height ?? 0) - clip.bounds.height)
-        var y: CGFloat = 0, dir: CGFloat = 1
-        var last = CACurrentMediaTime(), hitches = 0, worst = 0.0, frames = 0, slow = 0, total = 0.0
-        let end = last + 6
-        while CACurrentMediaTime() < end {
-            y += dir * 6
-            if y > maxY || y < 0 { dir = -dir; y = min(max(y, 0), maxY) }
-            clip.scroll(to: NSPoint(x: 0, y: y))
-            scroll.reflectScrolledClipView(clip)
-            try? await Task.sleep(for: .milliseconds(16))
-            let now = CACurrentMediaTime()
-            let dt = (now - last) * 1000
-            if dt > 33 { hitches += 1 }
-            if dt > 20 { slow += 1 }
-            total += dt
-            worst = max(worst, dt)
-            frames += 1
-            last = now
+        let span = min(500, maxY / 3)
+        // Top of the list (the Played section when there is one), then the bottom (Up Next).
+        for (region, lo) in [("top", CGFloat(0)), ("bottom", maxY - span)] {
+            var y = lo, dir: CGFloat = 1
+            var last = CACurrentMediaTime(), hitches = 0, worst = 0.0, frames = 0, slow = 0, total = 0.0
+            var work = 0.0, worstWork = 0.0
+            let bodies = QueueRow.debugBodyCount
+            let end = last + 4
+            while CACurrentMediaTime() < end {
+                y += dir * 6
+                if y > lo + span || y < lo { dir = -dir; y = min(max(y, lo), lo + span) }
+                let t0 = CACurrentMediaTime()
+                clip.scroll(to: NSPoint(x: 0, y: y))
+                scroll.reflectScrolledClipView(clip)
+                pop.contentView?.layoutSubtreeIfNeeded()
+                pop.displayIfNeeded()
+                CATransaction.flush()
+                let w = (CACurrentMediaTime() - t0) * 1000
+                work += w
+                worstWork = max(worstWork, w)
+                try? await Task.sleep(for: .milliseconds(16))
+                let now = CACurrentMediaTime()
+                let dt = (now - last) * 1000
+                if dt > 33 { hitches += 1 }
+                if dt > 20 { slow += 1 }
+                total += dt
+                worst = max(worst, dt)
+                frames += 1
+                last = now
+            }
+            NSLog("[scroll] %@ %@: %d frames, avg %.1f ms, %d slow, %d hitches, worst %.0f ms; scroll work avg %.2f ms, worst %.1f ms; %d row bodies",
+                  label, region, frames, total / Double(max(frames, 1)), slow, hitches, worst,
+                  work / Double(max(frames, 1)), worstWork, QueueRow.debugBodyCount - bodies)
         }
-        NSLog("[scroll] %@: %d frames, avg %.1f ms, %d slow (>20ms), %d hitches (>33ms), worst %.0f ms", label, frames, total / Double(max(frames, 1)), slow, hitches, worst)
     }
 
     private static func findScrollView(_ view: NSView?) -> NSScrollView? {

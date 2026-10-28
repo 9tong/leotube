@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import YTMusicKit
 
@@ -168,12 +169,102 @@ struct EqualizerBars: View {
     var color: Color = Theme.accent
 
     var body: some View {
-        Image(systemName: "waveform")
-            .font(.system(size: 13, weight: .bold))
-            .foregroundStyle(color)
-            .symbolEffect(.variableColor.iterative.dimInactiveLayers, options: .repeating,
-                          isActive: animating && app.isWindowVisible)
+        EqualizerBarsLayer(animating: animating && app.isWindowVisible, color: NSColor(color))
             .frame(width: 16, height: 14)
+            .accessibilityHidden(true)
+    }
+}
+
+/// Bouncing bars driven by Core Animation, so they cost nothing on the main
+/// thread. An animated SF Symbol here (`symbolEffect(.variableColor)`) made
+/// SwiftUI redraw the surrounding list every frame, and scrolling any list
+/// that showed the playing song stalled for seconds at a time.
+private struct EqualizerBarsLayer: NSViewRepresentable {
+    var animating: Bool
+    var color: NSColor
+
+    func makeNSView(context: Context) -> BarsView { BarsView() }
+
+    func updateNSView(_ view: BarsView, context: Context) {
+        view.color = color
+        view.animating = animating
+    }
+
+    final class BarsView: NSView {
+        private static let rest: [CGFloat] = [0.45, 0.85, 0.6, 0.35]
+        private static let periods: [CFTimeInterval] = [0.47, 0.39, 0.53, 0.43]
+        private let bars = (0..<4).map { _ in CALayer() }
+
+        var color: NSColor = .white { didSet { if color != oldValue { applyColor() } } }
+        var animating = false { didSet { if animating != oldValue { applyAnimation() } } }
+
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            wantsLayer = true
+            for bar in bars {
+                bar.anchorPoint = CGPoint(x: 0.5, y: 0)
+                bar.cornerRadius = 1
+                layer?.addSublayer(bar)
+            }
+            applyColor()
+            applyAnimation()
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+        override func layout() {
+            super.layout()
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            let width: CGFloat = 2.5
+            let gap = (bounds.width - width * CGFloat(bars.count)) / CGFloat(bars.count - 1)
+            for (i, bar) in bars.enumerated() {
+                bar.bounds = CGRect(x: 0, y: 0, width: width, height: bounds.height)
+                bar.position = CGPoint(x: width / 2 + CGFloat(i) * (width + gap), y: 0)
+            }
+            CATransaction.commit()
+        }
+
+        override func viewDidChangeEffectiveAppearance() {
+            super.viewDidChangeEffectiveAppearance()
+            applyColor()
+        }
+
+        // Core Animation drops animations from layers that leave the window
+        // (e.g. a list row being reused), so restart them when we come back.
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            applyAnimation()
+        }
+
+        private func applyColor() {
+            var cg = color.cgColor
+            effectiveAppearance.performAsCurrentDrawingAppearance { cg = color.cgColor }
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            for bar in bars { bar.backgroundColor = cg }
+            CATransaction.commit()
+        }
+
+        private func applyAnimation() {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            for (i, bar) in bars.enumerated() {
+                bar.removeAnimation(forKey: "bounce")
+                bar.transform = CATransform3DMakeScale(1, Self.rest[i], 1)
+                guard animating, window != nil else { continue }
+                let a = CABasicAnimation(keyPath: "transform.scale.y")
+                a.fromValue = 0.2
+                a.toValue = 1.0
+                a.duration = Self.periods[i]
+                a.autoreverses = true
+                a.repeatCount = .infinity
+                a.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                a.timeOffset = Self.periods[i] * Double(i) * 0.37
+                bar.add(a, forKey: "bounce")
+            }
+            CATransaction.commit()
+        }
     }
 }
 
