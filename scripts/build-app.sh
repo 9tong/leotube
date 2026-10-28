@@ -34,5 +34,6 @@ cp "$BIN" "$APP/Contents/MacOS/LeoTube"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
+xattr -cr "$APP"  # Finder/File Provider metadata makes codesign refuse the bundle
 codesign --force --deep --sign - --entitlements Resources/LeoTube.entitlements "$APP" >/dev/null
 echo "Built $APP"
