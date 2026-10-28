@@ -28,13 +28,14 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     }
 
     let webView: WKWebView
-    private let hostWindow: NSWindow
     private var pollTimer: Timer?
     private(set) var expectedVideoId: String?
     private var loadIssuedAt = Date.distantPast
     private var volume: Double = 0.8
     private var lastState = EngineState()
     /// Videos already retried with a full page load after an in-app load failed.
+    /// Holds the web view; never shown (see init).
+    private let hostWindow: NSWindow
     private var pageLoadRetried: Set<String> = []
     /// The video an "ended" event was already reported for, so a track can
     /// only finish once however many signals (JS, polling, guard) notice it.
@@ -64,15 +65,16 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         webView = WKWebView(frame: NSRect(origin: .zero, size: Self.hostSize), configuration: config)
         webView.customUserAgent = YTMusicClient.userAgent
 
-        // Offscreen host window so the page counts as "in a window" (required
-        // for media playback) without ever being visible to the user.
-        hostWindow = NSWindow(contentRect: NSRect(origin: NSPoint(x: -30000, y: -30000), size: Self.hostSize),
-                              styleMask: [.borderless], backing: .buffered, defer: false)
+        // WebKit only plays media for a web view that belongs to a window, but
+        // the window never has to be on screen; playback and the system Now
+        // Playing controls (media keys, Control Center) both work without it.
+        // Earlier versions ordered an invisible window in, which made the
+        // window server composite the music video every frame and caused
+        // scrolling to stutter while music played.
+        hostWindow = NSWindow(contentRect: NSRect(origin: .zero, size: Self.hostSize),
+                              styleMask: [.borderless], backing: .buffered, defer: true)
         hostWindow.isReleasedWhenClosed = false
         hostWindow.isExcludedFromWindowsMenu = true
-        hostWindow.ignoresMouseEvents = true
-        hostWindow.alphaValue = 0
-        hostWindow.collectionBehavior = [.transient, .ignoresCycle, .stationary]
         hostWindow.contentView = webView
 
         super.init()
@@ -80,16 +82,9 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         webView.navigationDelegate = self
     }
 
-    /// Attached lazily: a window existing at launch would stop SwiftUI from
-    /// opening the main window.
-    private func ensureHosted() {
-        if !hostWindow.isVisible { hostWindow.orderFrontRegardless() }
-    }
-
     // MARK: - Commands
 
     func warmUp() {
-        ensureHosted()
         guard webView.url == nil else { return }
         webView.load(URLRequest(url: URL(string: "https://music.youtube.com/")!))
         startPolling()
@@ -102,7 +97,6 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         }
         expectedVideoId = videoId
         loadIssuedAt = Date()
-        ensureHosted()
         startPolling()
         Task {
             let ok = (try? await webView.callAsyncJavaScript(
