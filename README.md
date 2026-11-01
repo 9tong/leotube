@@ -34,9 +34,13 @@ LeoTube is native from the ground up. Every screen is built in SwiftUI with Liqu
 
 1. Download the latest `LeoTube-x.y.z.dmg` from [Releases](https://github.com/9tong/leotube/releases/latest).
 2. Open it and drag **LeoTube** into **Applications**.
-3. The app is not notarized by Apple, so the first launch shows a warning. Right-click the app and choose **Open**, or run `xattr -dr com.apple.quarantine /Applications/LeoTube.app`.
 
-LeoTube requires macOS 26 (Tahoe) or later.
+> [!NOTE]
+> **Heads up:** LeoTube needs macOS 26 (Tahoe) or later. It isn't notarized because I don't have a paid Apple Developer account, so macOS blocks the first launch. To open it, go to **System Settings › Privacy & Security** and click **Open Anyway**, or run:
+>
+> ```bash
+> xattr -dr com.apple.quarantine /Applications/LeoTube.app
+> ```
 
 ## Build from source
 
