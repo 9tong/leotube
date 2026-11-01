@@ -15,7 +15,7 @@
 
 ## Why another YouTube Music app?
 
-This is an easy time to build something. I tried a lot of the open-source YouTube Music apps for the Mac, and most of them either wrap the website in a window or still feel like the old YouTube Music interface. I wanted something that feels like it belongs on macOS 26 and is as pleasant to use as the best music players, so I made a new one.
+This is an easy time to build something. I tried a lot of the open-source YouTube Music apps for the Mac, and most of them either wrap the website in a window or still feel like the old YouTube Music interface. Others pack in so many features that they get complicated, and in everyday use I kept running into bugs. I wanted something that feels like it belongs on macOS 26 and is as pleasant to use as the best music players, so I made a new one.
 
 LeoTube is native from the ground up. Every screen is built in SwiftUI with Liquid Glass. Signing in uses your own Google account, so your recommendations, library, likes and YouTube Premium benefits all carry over.
 
