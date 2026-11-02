@@ -55,8 +55,8 @@ struct PlayerBar: View {
         }
         .padding(.horizontal, 14)
         .frame(maxWidth: .infinity)
-        .frame(height: layout == .mini ? 92 : Theme.playerBarHeight)
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
+        .frame(height: layout == .mini ? Theme.playerBarMiniHeight : Theme.playerBarHeight)
+        .readWidth($width, breakpoints: [640, 720, 860])
         .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
         .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
     }

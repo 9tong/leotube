@@ -121,7 +121,7 @@ struct SearchResultsView: View {
             .padding(.top, 8)
             .padding(.bottom, 40)
         }
-        .readWidth($width)
+        .readWidth($width, breakpoints: [760])
         .background(alignment: .top) { PageGlow(color: Color(red: 0.9, green: 0.35, blue: 0.6)) }
         .task { await load() }
     }

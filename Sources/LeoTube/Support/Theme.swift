@@ -8,6 +8,12 @@ enum Theme {
     static let accentGradient = LinearGradient(colors: [accent, accentSecondary], startPoint: .topLeading, endPoint: .bottomTrailing)
     static let pagePadding: CGFloat = 32
     static let playerBarHeight: CGFloat = 76
+    /// The two-row player bar used in narrow windows.
+    static let playerBarMiniHeight: CGFloat = 92
+    /// Bottom padding that keeps page content clear of the floating player
+    /// bar. Fixed at the tallest bar so pages don't re-lay out when the bar
+    /// changes layout, e.g. halfway through the sidebar sliding in or out.
+    static let playerInset: CGFloat = playerBarMiniHeight + 12
     static let cardWidth: CGFloat = 176
 }
 
@@ -67,9 +73,15 @@ extension MediaItem {
 }
 
 extension View {
-    /// Reports this view's width, for layouts that adapt to narrow windows.
-    func readWidth(_ width: Binding<CGFloat>) -> some View {
-        onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width.wrappedValue = $0 }
+    /// Reports this view's width rounded down to the nearest breakpoint, for
+    /// layouts that adapt to narrow windows. Compare the result only against
+    /// those breakpoints (`<` or `>=`). Reporting the exact width would
+    /// rebuild the view on every frame of a resize, such as while the sidebar
+    /// slides in or out.
+    func readWidth(_ width: Binding<CGFloat>, breakpoints: [CGFloat]) -> some View {
+        onGeometryChange(for: CGFloat.self) { geo in
+            breakpoints.last { $0 <= geo.size.width } ?? 0
+        } action: { width.wrappedValue = $0 }
     }
 }
 

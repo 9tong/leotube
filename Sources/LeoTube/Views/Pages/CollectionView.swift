@@ -54,7 +54,7 @@ struct CollectionView: View {
             }
             .padding(.bottom, 40)
         }
-        .readWidth($width)
+        .readWidth($width, breakpoints: [640, 720, 820])
         .background(alignment: .top) {
             LinearGradient(colors: [tint.opacity(0.85), tint.opacity(0.35), .clear], startPoint: .top, endPoint: .bottom)
                 .frame(height: 560)

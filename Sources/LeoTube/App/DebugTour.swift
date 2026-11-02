@@ -7,6 +7,11 @@ import YTMusicKit
 @MainActor
 enum DebugTour {
     static func runIfRequested(_ app: AppModel) {
+        if ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_SIDEBARTEST"] != nil {
+            app.showWelcome = false
+            Task { await sidebarTest(app) }
+            return
+        }
         guard let dir = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_TOUR"] else { return }
         let out = URL(fileURLWithPath: dir)
         try? FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
@@ -144,6 +149,74 @@ enum DebugTour {
                   label, region, frames, total / Double(max(frames, 1)), slow, hitches, worst,
                   work / Double(max(frames, 1)), worstWork, QueueRow.debugBodyCount - bodies)
         }
+    }
+
+    /// Opens a page (`LEOTUBE_DEBUG_SIDEBAR_PAGE=<browseId>`, Home by
+    /// default), then hides and shows the sidebar a few times, the way the
+    /// toolbar button does, and reports frames dropped during each animation.
+    static func sidebarTest(_ app: AppModel) async {
+        try? await Task.sleep(for: .seconds(10))
+        switch ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_SIDEBAR_PAGE"] {
+        case nil: break
+        case "explore": app.selection = .explore
+        case "library": app.selection = .library
+        case "search": app.selection = .search
+        case let id?: app.push(BrowseTarget(browseId: id))
+        }
+        try? await Task.sleep(for: .seconds(6))
+        guard let window = app.mainWindow, let split = findSplitViewController(window.contentView) else {
+            NSLog("[sidebar] no split view"); return
+        }
+        if let size = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_TOUR_SIZE"]?.split(separator: "x").compactMap({ Double($0) }),
+           size.count == 2 {
+            window.setFrame(NSRect(x: 40, y: 40, width: size[0], height: size[1]), display: true)
+        }
+        // A window hidden behind other apps isn't redrawn, so bring it forward
+        // (without activating the app) or there's nothing to measure.
+        window.orderFrontRegardless()
+        try? await Task.sleep(for: .seconds(1))
+        if let shot = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_SIDEBAR_SHOT"] {
+            snapshot(window: window, to: URL(fileURLWithPath: shot))
+        }
+        let probe = FrameProbe()
+        let link = window.displayLink(target: probe, selector: #selector(FrameProbe.tick(_:)))
+        link.add(to: .main, forMode: .common)
+        for _ in 0..<8 {
+            probe.reset()
+            split.toggleSidebar(nil)
+            try? await Task.sleep(for: .milliseconds(900))
+            NSLog("[sidebar] %@: %d frames, %d dropped, worst gap %.0f ms",
+                  split.splitViewItems.first?.isCollapsed == true ? "hide" : "show",
+                  probe.frames, probe.dropped, probe.worst * 1000)
+        }
+        link.invalidate()
+        NSLog("[sidebar] done")
+    }
+
+    private final class FrameProbe: NSObject {
+        var frames = 0, dropped = 0, worst = 0.0
+        private var last: CFTimeInterval = 0
+
+        func reset() { frames = 0; dropped = 0; worst = 0; last = 0 }
+
+        @objc func tick(_ link: CADisplayLink) {
+            let interval = max(link.targetTimestamp - link.timestamp, 1.0 / 120)
+            if last > 0 {
+                let gap = link.timestamp - last
+                if gap > interval * 1.5 { dropped += Int((gap / interval).rounded()) - 1 }
+                worst = max(worst, gap)
+            }
+            last = link.timestamp
+            frames += 1
+        }
+    }
+
+    private static func findSplitViewController(_ view: NSView?) -> NSSplitViewController? {
+        guard let view else { return nil }
+        if let split = view as? NSSplitView, let vc = split.delegate as? NSSplitViewController,
+           vc.splitViewItems.contains(where: { $0.behavior == .sidebar }) { return vc }
+        for sub in view.subviews { if let vc = findSplitViewController(sub) { return vc } }
+        return nil
     }
 
     private static func findScrollView(_ view: NSView?) -> NSScrollView? {

@@ -4,15 +4,10 @@ import YTMusicKit
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @State private var suggestions = SearchSuggestions(queries: [], items: [])
-    /// Height of the floating player bar (plus its margin), used as bottom
-    /// padding so page content can scroll clear of it.
-    @State private var playerInset: CGFloat = Theme.playerBarHeight + 12
-    /// The content column's frame in window coordinates; the player bar is
-    /// drawn at the root and positioned over it.
-    @State private var detailFrame: CGRect = .zero
-    /// The root container's frame in the same space, so the bar's offset is
-    /// relative to the overlay's own origin (which sits below the toolbar).
-    @State private var rootFrame: CGRect = .zero
+    /// Where the player bar goes. Kept out of this view's own state: the
+    /// frames change on every frame of a sidebar or window resize, and only
+    /// the bar should update for that, not the whole window.
+    @State private var placement = PlayerBarPlacement()
 
     var body: some View {
         @Bindable var app = app
@@ -22,17 +17,17 @@ struct RootView: View {
         } detail: {
             NavigationStack(path: $app.path) {
                 detailRoot
-                    .safeAreaPadding(.bottom, playerInset)
+                    .safeAreaPadding(.bottom, Theme.playerInset)
                     .navigationDestination(for: Route.self) { route in
                         switch route {
                         case .browse(let target):
                             BrowseView(target: target).id(target)
-                                .safeAreaPadding(.bottom, playerInset)
+                                .safeAreaPadding(.bottom, Theme.playerInset)
                         }
                     }
             }
             .background(Color(nsColor: .windowBackgroundColor).ignoresSafeArea())
-            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { detailFrame = $0 }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { placement.detailFrame = $0 }
         }
         .inspector(isPresented: $app.showInspector) {
             QueuePanel()
@@ -56,16 +51,9 @@ struct RootView: View {
         // The player bar lives at the root: pages pushed onto the navigation
         // stack (album, artist, playlist…) are drawn in their own layer above
         // anything attached inside the stack, which used to hide the bar.
-        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { rootFrame = $0 }
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { placement.rootFrame = $0 }
         .overlay(alignment: .topLeading) {
-            if detailFrame.width > 0, !app.showNowPlaying, !app.showWelcome {
-                PlayerBar()
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, 12)
-                    .frame(width: detailFrame.width)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { playerInset = $0 }
-                    .offset(x: detailFrame.minX - rootFrame.minX, y: detailFrame.maxY - rootFrame.minY - playerInset)
-            }
+            PlacedPlayerBar(placement: placement)
         }
         .toolbar(removing: .title)
         .toolbar(app.showNowPlaying || app.showWelcome ? .hidden : .automatic, for: .windowToolbar)
@@ -119,6 +107,35 @@ struct RootView: View {
         case .library: LibraryView().id("library")
         case .search: SearchView().id("search")
         case .collection(let target, _): BrowseView(target: target).id(target)
+        }
+    }
+}
+
+@Observable
+final class PlayerBarPlacement {
+    /// The content column's frame in window coordinates; the player bar is
+    /// drawn at the root and positioned over it.
+    var detailFrame: CGRect = .zero
+    /// The root container's frame in the same space, so the bar's offset is
+    /// relative to the overlay's own origin (which sits below the toolbar).
+    var rootFrame: CGRect = .zero
+}
+
+/// The player bar, pinned to the bottom of the content column.
+private struct PlacedPlayerBar: View {
+    @Environment(AppModel.self) private var app
+    let placement: PlayerBarPlacement
+    @State private var height = Theme.playerInset
+
+    var body: some View {
+        let detail = placement.detailFrame, root = placement.rootFrame
+        if detail.width > 0, !app.showNowPlaying, !app.showWelcome {
+            PlayerBar()
+                .padding(.horizontal, 14)
+                .padding(.bottom, 12)
+                .frame(width: detail.width)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+                .offset(x: detail.minX - root.minX, y: detail.maxY - root.minY - height)
         }
     }
 }

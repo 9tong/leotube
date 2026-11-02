@@ -81,7 +81,8 @@ struct TrackRow: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 56)
-        .readWidth($rowWidth)
+        // Only rows that can show the album column need to know their width.
+        .readWidth($rowWidth, breakpoints: showAlbum && isTrack ? [620] : [])
         .background(
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color.primary.opacity(isCurrent ? 0.08 : (hovering ? 0.06 : 0)))

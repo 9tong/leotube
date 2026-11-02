@@ -224,7 +224,7 @@ struct HeroCard: View {
             .padding(28)
         }
         .frame(height: compact ? 220 : 252)
-        .readWidth($width)
+        .readWidth($width, breakpoints: [600])
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(.white.opacity(0.08)))
         .shadow(color: .black.opacity(0.25), radius: 20, y: 10)
