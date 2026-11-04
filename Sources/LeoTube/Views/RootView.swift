@@ -33,7 +33,7 @@ struct RootView: View {
             QueuePanel()
                 .inspectorColumnWidth(min: 300, ideal: 340, max: 440)
         }
-        .searchable(text: $app.searchText, placement: .sidebar, prompt: "Songs, albums, artists, podcasts")
+        .searchable(text: $app.searchText, placement: .toolbar, prompt: "Songs, albums, artists, podcasts")
         .searchSuggestions {
             if !app.searchText.isEmpty {
                 ForEach(suggestions.queries, id: \.self) { q in
