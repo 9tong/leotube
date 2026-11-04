@@ -34,6 +34,16 @@ cp "$BIN" "$APP/Contents/MacOS/LeoTube"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
+# The app's accent color. Without it the sidebar uses the system's blue. actool
+# comes with Xcode, not the Command Line Tools.
+if xcrun --find actool >/dev/null 2>&1; then
+  xcrun actool Resources/Assets.xcassets --compile "$APP/Contents/Resources" --platform macosx \
+    --minimum-deployment-target 26.0 --accent-color AccentColor \
+    --output-partial-info-plist "$(mktemp)" >/dev/null
+else
+  echo "warning: actool not found (it needs Xcode); building without the accent color" >&2
+fi
+
 xattr -cr "$APP"  # Finder/File Provider metadata makes codesign refuse the bundle
 codesign --force --deep --sign - --entitlements Resources/LeoTube.entitlements "$APP" >/dev/null
 echo "Built $APP"

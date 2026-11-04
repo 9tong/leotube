@@ -174,6 +174,11 @@ enum DebugTour {
         // A window hidden behind other apps isn't redrawn, so bring it forward
         // (without activating the app) or there's nothing to measure.
         window.orderFrontRegardless()
+        if ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_ACTIVATE"] != nil {
+            // Sidebar colors differ in the active window, so captures of them need focus.
+            NSApp.activate()
+            window.makeKeyAndOrderFront(nil)
+        }
         try? await Task.sleep(for: .seconds(1))
         if let shot = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_SIDEBAR_SHOT"] {
             snapshot(window: window, to: URL(fileURLWithPath: shot))

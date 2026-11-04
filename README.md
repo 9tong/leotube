@@ -44,7 +44,7 @@ LeoTube is native from the ground up. Every screen is built in SwiftUI with Liqu
 
 ## Build from source
 
-You only need Xcode or the Command Line Tools with the macOS 26 SDK. The app builds with Swift Package Manager.
+You only need Xcode or the Command Line Tools with the macOS 26 SDK. The app builds with Swift Package Manager. Without Xcode, the build skips the app's accent color, so the sidebar uses the system's blue.
 
 ```bash
 scripts/build-app.sh          # release build → build/LeoTube.app
@@ -90,7 +90,7 @@ swift scripts/prepare-icon.swift Resources/AppIcon-source.png Resources/AppIcon.
 | `LEOTUBE_EPHEMERAL=1` | Uses a throwaway signed-out session, so development runs never touch your real account. |
 | `LEOTUBE_DEBUG_PLAY=<videoId>` | Starts playback at launch. Add `LEOTUBE_DEBUG_SEEK=<seconds>` to jump near the end once any ad has finished, and `LEOTUBE_DEBUG_MUTE=1` to keep it silent. |
 | `LEOTUBE_DEBUG_OPEN_QUEUE=1` | With `LEOTUBE_DEBUG_PLAY`, opens the queue pop-up. Add `LEOTUBE_DEBUG_SCROLLTEST=1` to time scrolling it while playing and then while paused, `LEOTUBE_DEBUG_QUEUE_AT=<index>` to start from a later song so a Played section shows, and `LEOTUBE_DEBUG_QUEUE_SHOT=<file.png>` to save a capture of the pop-up before the scroll test. The scroll test reports the top (Played and Now Playing) and bottom (Up Next) of the list separately. |
-| `LEOTUBE_DEBUG_SIDEBARTEST=1` | Hides and shows the sidebar eight times and logs the frames dropped during each slide. `LEOTUBE_DEBUG_SIDEBAR_PAGE` opens a page first (`explore`, `library`, `search` or a browse ID such as an album's), `LEOTUBE_DEBUG_TOUR_SIZE` sets the window size, and `LEOTUBE_DEBUG_SIDEBAR_SHOT=<file.png>` saves a capture. The window comes to the front during the test. |
+| `LEOTUBE_DEBUG_SIDEBARTEST=1` | Hides and shows the sidebar eight times and logs the frames dropped during each slide. `LEOTUBE_DEBUG_SIDEBAR_PAGE` opens a page first (`explore`, `library`, `search` or a browse ID such as an album's), `LEOTUBE_DEBUG_TOUR_SIZE` sets the window size, and `LEOTUBE_DEBUG_SIDEBAR_SHOT=<file.png>` saves a capture. The window comes to the front during the test. Add `LEOTUBE_DEBUG_ACTIVATE=1` to capture it as the active window, which the sidebar's colors depend on; launch with `open -n --env …`, because macOS won't activate a copy started from a shell. |
 | `LEOTUBE_DEBUG_NO_EARLY_END=1` | Lets songs play to their real end, to test how LeoTube handles the web player's own autoplay. |
 
 ## Notes
