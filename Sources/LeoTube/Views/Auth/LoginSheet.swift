@@ -78,7 +78,7 @@ private struct SignInWebView: NSViewRepresentable {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             parent.loading = false
             if PlayerEngine.debug {
-                webView.evaluateJavaScript("document.title + ' | ' + document.body.innerText.slice(0, 300)") { r, _ in
+                webView.evaluateJavaScript("navigator.userAgent + ' | ' + document.title + ' | ' + document.body.innerText.slice(0, 300)") { r, _ in
                     NSLog("[login] finished %@ :: %@", webView.url?.absoluteString ?? "-", String(describing: r ?? ""))
                 }
             }

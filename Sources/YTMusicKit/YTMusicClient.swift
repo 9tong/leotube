@@ -22,8 +22,22 @@ public typealias CookieProvider = @Sendable () async -> [HTTPCookie]
 /// app uses). Authentication piggybacks on the browser session cookies.
 public actor YTMusicClient {
     public static let origin = "https://music.youtube.com"
+    /// Safari's user agent, with the version of the Safari installed on this
+    /// Mac. Google's sign-in page refuses a browser whose claimed version
+    /// doesn't match its WebKit ("This browser or app may not be secure"),
+    /// so the version can't be hard-coded.
     public static let userAgent =
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15"
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/\(safariVersion) Safari/605.1.15"
+
+    static let safariVersion: String = {
+        if let v = Bundle(path: "/Applications/Safari.app")?.infoDictionary?["CFBundleShortVersionString"] as? String,
+           !v.isEmpty {
+            return v
+        }
+        // Since Safari 26, its version follows the macOS version.
+        let os = ProcessInfo.processInfo.operatingSystemVersion
+        return "\(os.majorVersion).\(os.minorVersion)"
+    }()
 
     private let session: URLSession
     private var cookieProvider: CookieProvider?
