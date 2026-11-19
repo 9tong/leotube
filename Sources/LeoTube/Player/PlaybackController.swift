@@ -588,5 +588,6 @@ final class PlaybackController {
         timeAnchor = (s.time, .now)
         engineLoadedCurrent = false
         nowPlaying.update(self)
+        nowPlaying.claimMediaKeys(self)
     }
 }

@@ -35,6 +35,21 @@ final class NowPlayingCenter {
         }
     }
 
+    /// macOS sends the media keys to the app that most recently reported
+    /// playing. A queue restored at launch is only paused, so until the first
+    /// song plays the keys went nowhere and macOS opened Apple Music instead.
+    /// Reporting "playing" for a moment registers LeoTube without playing
+    /// anything.
+    func claimMediaKeys(_ p: PlaybackController) {
+        guard p.current != nil else { return }
+        let center = MPNowPlayingInfoCenter.default()
+        center.playbackState = .playing
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak p] in
+            guard let p else { return }
+            center.playbackState = p.isPlaying ? .playing : .paused
+        }
+    }
+
     func update(_ p: PlaybackController, onlyTime: Bool = false) {
         let center = MPNowPlayingInfoCenter.default()
         guard let item = p.current else {

@@ -130,9 +130,9 @@ final class AppModel {
         let signedIn = await auth.refresh()
         engine.warmUp()
         defer { DebugTour.runIfRequested(self) }
+        if ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_MUTE"] != nil { engine.setVolume(0) }
         if let vid = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_PLAY"] {
             showWelcome = false
-            if ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_MUTE"] != nil { engine.setVolume(0) }
             player.playRadio(from: MediaItem(id: vid, kind: .song, title: "Debug track", videoId: vid))
             if let dir = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_START_SHOTS"] {
                 // Captures how the player looks while a song starts.
