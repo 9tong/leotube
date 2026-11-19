@@ -135,8 +135,9 @@ struct TransportControls: View {
                 ZStack {
                     Circle().fill(.white)
                         .shadow(color: .black.opacity(0.25), radius: 6, y: 2)
-                    if p.isBuffering && p.isPlaying {
-                        ProgressView().controlSize(.small).tint(.black)
+                    if p.isStarting {
+                        LoadingRing(lineWidth: 2 * scale)
+                            .frame(width: 16 * scale, height: 16 * scale)
                     } else {
                         Image(systemName: p.isPlaying ? "pause.fill" : "play.fill")
                             .font(.system(size: 15 * scale, weight: .bold))

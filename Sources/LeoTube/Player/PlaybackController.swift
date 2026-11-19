@@ -33,6 +33,9 @@ final class PlaybackController {
     }
     private(set) var isBuffering = false
     private(set) var isLoadingQueue = false
+    /// Play was pressed but nothing is audible yet: the queue is still being
+    /// fetched, or the song is buffering.
+    var isStarting: Bool { isLoadingQueue || (isBuffering && isPlaying) }
     private(set) var isAd = false
     private(set) var duration: Double = 0
     private(set) var sourceTitle: String?

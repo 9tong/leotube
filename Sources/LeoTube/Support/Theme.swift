@@ -191,6 +191,61 @@ struct EqualizerBars: View {
 /// thread. An animated SF Symbol here (`symbolEffect(.variableColor)`) made
 /// SwiftUI redraw the surrounding list every frame, and scrolling any list
 /// that showed the playing song stalled for seconds at a time.
+/// A spinning arc. Drawn with Core Animation rather than `ProgressView`,
+/// whose system spinner turns light in the dark player bar and disappears on
+/// the white play button.
+struct LoadingRing: NSViewRepresentable {
+    var color: NSColor = .black
+    var lineWidth: CGFloat = 2
+
+    func makeNSView(context: Context) -> RingView { RingView() }
+
+    func updateNSView(_ view: RingView, context: Context) {
+        view.ring.strokeColor = color.cgColor
+        view.ring.lineWidth = lineWidth
+        view.needsLayout = true
+    }
+
+    final class RingView: NSView {
+        let ring = CAShapeLayer()
+
+        override init(frame: NSRect) {
+            super.init(frame: frame)
+            wantsLayer = true
+            ring.fillColor = nil
+            ring.lineCap = .round
+            ring.strokeStart = 0
+            ring.strokeEnd = 0.72
+            layer?.addSublayer(ring)
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+        override func layout() {
+            super.layout()
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            let inset = ring.lineWidth / 2
+            ring.frame = bounds
+            ring.path = CGPath(ellipseIn: bounds.insetBy(dx: inset, dy: inset), transform: nil)
+            CATransaction.commit()
+        }
+
+        // Animations are dropped when the layer leaves the window; restart them.
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            ring.removeAnimation(forKey: "spin")
+            guard window != nil else { return }
+            let a = CABasicAnimation(keyPath: "transform.rotation.z")
+            a.fromValue = 0
+            a.toValue = -2 * Double.pi
+            a.duration = 0.9
+            a.repeatCount = .infinity
+            ring.add(a, forKey: "spin")
+        }
+    }
+}
+
 private struct EqualizerBarsLayer: NSViewRepresentable {
     var animating: Bool
     var color: NSColor

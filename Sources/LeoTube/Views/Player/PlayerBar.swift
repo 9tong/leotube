@@ -193,11 +193,15 @@ private struct MiniTransport: View {
             Button { p.togglePlayPause() } label: {
                 ZStack {
                     Circle().fill(.white)
-                    Image(systemName: p.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(.black)
-                        .offset(x: p.isPlaying ? 0 : 1)
-                        .contentTransition(.symbolEffect(.replace))
+                    if p.isStarting {
+                        LoadingRing().frame(width: 14, height: 14)
+                    } else {
+                        Image(systemName: p.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.black)
+                            .offset(x: p.isPlaying ? 0 : 1)
+                            .contentTransition(.symbolEffect(.replace))
+                    }
                 }
                 .frame(width: 34, height: 34)
             }

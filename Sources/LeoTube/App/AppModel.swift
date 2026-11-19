@@ -134,6 +134,22 @@ final class AppModel {
             showWelcome = false
             if ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_MUTE"] != nil { engine.setVolume(0) }
             player.playRadio(from: MediaItem(id: vid, kind: .song, title: "Debug track", videoId: vid))
+            if let dir = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_START_SHOTS"] {
+                // Captures how the player looks while a song starts.
+                Task {
+                    if let size = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_TOUR_SIZE"]?.split(separator: "x").compactMap({ Double($0) }),
+                       size.count == 2, let w = mainWindow {
+                        w.setFrame(NSRect(x: 40, y: 40, width: size[0], height: size[1]), display: true)
+                    }
+                    for i in 0..<12 {
+                        NSLog("[start] %.1fs loadingQueue=%d playing=%d buffering=%d ad=%d current=%@", Double(i) * 0.5,
+                              player.isLoadingQueue ? 1 : 0, player.isPlaying ? 1 : 0, player.isBuffering ? 1 : 0,
+                              player.isAd ? 1 : 0, player.current?.title ?? "-")
+                        DebugTour.snapshot(to: URL(fileURLWithPath: dir).appendingPathComponent(String(format: "start-%02d.png", i)))
+                        try? await Task.sleep(for: .milliseconds(500))
+                    }
+                }
+            }
             if ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_OPEN_QUEUE"] != nil {
                 Task {
                     try? await Task.sleep(for: .seconds(8))
