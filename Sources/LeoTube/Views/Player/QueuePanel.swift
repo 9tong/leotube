@@ -116,6 +116,7 @@ struct QueueList: View {
                             Button("Clear") { withAnimation { p.clearUpNext() } }
                                 .buttonStyle(.plain)
                                 .foregroundStyle(.secondary)
+                                .padding(.trailing, 10)
                         }
                     }
                 }

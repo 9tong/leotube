@@ -129,8 +129,15 @@ final class AppModel {
     func bootstrap() async {
         let signedIn = await auth.refresh()
         engine.warmUp()
+        TurntableArt.prewarm()
         defer { DebugTour.runIfRequested(self) }
         if ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_MUTE"] != nil { engine.setVolume(0) }
+        if let dir = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_NOWPLAYING"],
+           ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_PLAY"] == nil {
+            showWelcome = false
+            Task { await DebugTour.nowPlayingLayout(self, dir: URL(fileURLWithPath: dir)) }
+            return
+        }
         if let vid = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_PLAY"] {
             showWelcome = false
             player.playRadio(from: MediaItem(id: vid, kind: .song, title: "Debug track", videoId: vid))
@@ -173,6 +180,9 @@ final class AppModel {
                     try? await Task.sleep(for: .seconds(3))
                     await DebugTour.scrollTest(label: "paused")
                 }
+            }
+            if let dir = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_NOWPLAYING"] {
+                Task { await DebugTour.nowPlayingShots(self, dir: URL(fileURLWithPath: dir)) }
             }
             if ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_HOLDTEST"] != nil {
                 Task { await runHoldTest() }

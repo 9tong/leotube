@@ -242,6 +242,14 @@ final class PlaybackController {
         index = i
     }
 
+    /// Development aid for screenshots: fills the queue without playing it.
+    func debugShowQueue(_ items: [MediaItem], source: String) {
+        queue = items
+        index = 0
+        sourceTitle = source
+        duration = items.first?.durationSeconds ?? 0
+    }
+
     /// Reloads the current track from scratch (after a session change).
     func retryCurrent() {
         guard current != nil else { return }

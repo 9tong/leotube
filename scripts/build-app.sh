@@ -34,6 +34,10 @@ cp "$BIN" "$APP/Contents/MacOS/LeoTube"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
+# Now Playing's turntable. Regenerate it (a few minutes of GPU time) with:
+#   swiftc -O scripts/render-turntable.swift -o /tmp/render-turntable && /tmp/render-turntable Resources/Turntable 2000
+cp -R Resources/Turntable "$APP/Contents/Resources/Turntable"
+
 # The app's accent color. Without it the sidebar uses the system's blue. actool
 # comes with Xcode, not the Command Line Tools.
 if xcrun --find actool >/dev/null 2>&1; then

@@ -96,6 +96,86 @@ enum DebugTour {
         NSLog("[tour] wrote %@", url.path)
     }
 
+    /// Captures the Now Playing page at several window sizes with a real
+    /// queue loaded, without playing anything.
+    static func nowPlayingLayout(_ app: AppModel, dir: URL) async {
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let id = "dQw4w9WgXcQ"
+        guard let q = try? await app.client.next(WatchTarget(videoId: id, playlistId: "RDAMVM" + id, params: "wAEB")) else {
+            NSLog("[turntable] couldn't load a queue"); return
+        }
+        app.player.debugShowQueue(q.items, source: "Radio · \(q.items.first?.title ?? "")")
+        app.showWelcome = false
+        if let home = try? await app.client.browse("FEmusic_explore") {
+            app.libraryPlaylists = home.shelves.flatMap(\.items).filter { $0.browse != nil && ($0.kind == .playlist || $0.kind == .album) }
+        }
+        if app.libraryPlaylists.isEmpty, let home = try? await app.client.home() {
+            app.libraryPlaylists = home.shelves.flatMap(\.items).filter { $0.browse != nil && ($0.kind == .playlist || $0.kind == .album) }
+        }
+        for (w, h) in [(1480, 920), (899, 900), (1100, 700), (600, 500)] {
+            app.showNowPlaying = false
+            app.mainWindow?.setFrame(NSRect(x: 40, y: 40, width: w, height: h), display: true)
+            try? await Task.sleep(for: .seconds(1))
+            app.showNowPlaying = true
+            try? await Task.sleep(for: .seconds(4))
+            snapshot(to: dir.appendingPathComponent("layout-\(w)x\(h).png"))
+        }
+        NSLog("[turntable] layout done")
+    }
+
+    /// Opens Now Playing and captures the turntable while it starts, seeks,
+    /// pauses, resumes and changes songs. Core Animation's current frame is
+    /// drawn from the presentation layers (`*-frame.png`), because a window
+    /// capture may show only where the animations end.
+    static func nowPlayingShots(_ app: AppModel, dir: URL) async {
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let p = app.player
+        if let size = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_TOUR_SIZE"]?.split(separator: "x").compactMap({ Double($0) }),
+           size.count == 2, let w = app.mainWindow {
+            w.setFrame(NSRect(x: 40, y: 40, width: size[0], height: size[1]), display: true)
+        }
+        repeat { try? await Task.sleep(for: .seconds(1)) } while p.isAd || p.duration < 60 || p.upNext.isEmpty
+        app.mainWindow?.orderFrontRegardless()
+        app.showNowPlaying = true
+        // Test windows start behind other apps; animate as if in view.
+        app.isWindowVisible = true
+        func frames(_ name: String, count: Int, every ms: Int = 250) async {
+            let t0 = CACurrentMediaTime()
+            for i in 0..<count {
+                guard let view = findTurntable(app.mainWindow?.contentView) else { NSLog("[turntable] no view"); return }
+                NSLog("[turntable] %@ %.2fs playing=%d buffering=%d ad=%d t=%.1f/%.1f %@", name, CACurrentMediaTime() - t0, p.isPlaying ? 1 : 0,
+                      p.isBuffering ? 1 : 0, p.isAd ? 1 : 0, p.time(at: .now), p.duration, view.debugDescriptionOfMotion)
+                view.debugSnapshot(to: dir.appendingPathComponent(String(format: "%@-%02d-frame.png", name, i)))
+                try? await Task.sleep(for: .milliseconds(ms))
+            }
+        }
+        func window(_ name: String) { snapshot(to: dir.appendingPathComponent("\(name).png")) }
+        await frames("start", count: 10)
+        window("w1-playing")
+        p.seek(to: p.duration * 0.6)
+        await frames("seek", count: 6)
+        p.pause()
+        await frames("pause", count: 8)
+        window("w2-paused")
+        p.resume()
+        await frames("resume", count: 8)
+        p.next()
+        await frames("next", count: 16, every: 150)
+        window("w3-next")
+        p.previous()
+        await frames("previous", count: 16, every: 150)
+        for _ in 0..<3 { p.next(); try? await Task.sleep(for: .milliseconds(250)) }
+        await frames("skip", count: 10)
+        NSLog("[turntable] done")
+    }
+
+    private static func findTurntable(_ view: NSView?) -> TurntableNSView? {
+        guard let view else { return nil }
+        if let t = view as? TurntableNSView { return t }
+        for sub in view.subviews { if let t = findTurntable(sub) { return t } }
+        return nil
+    }
+
     /// Scrolls the queue pop-up's list at 60 fps for 6 s and reports frames
     /// that took noticeably longer than one display frame (hitches).
     static func scrollTest(label: String) async {
