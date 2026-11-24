@@ -174,6 +174,9 @@ final class AppModel {
                     await DebugTour.scrollTest(label: "paused")
                 }
             }
+            if ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_HOLDTEST"] != nil {
+                Task { await runHoldTest() }
+            }
             if let seek = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG_SEEK"].flatMap(Double.init) {
                 Task {
                     // Wait for the song itself (not a pre-roll ad) before seeking.
@@ -189,6 +192,41 @@ final class AppModel {
         } else if !UserDefaults.standard.bool(forKey: "guestMode") {
             showWelcome = true
         }
+    }
+
+    /// Test for `LEOTUBE_DEBUG_HOLDTEST`: pauses the song, then has the web
+    /// page try to start playback by itself three ways, as it did after the
+    /// Mac woke from sleep. A paused song has to stay paused through all of
+    /// them, and Play has to work afterwards.
+    private func runHoldTest() async {
+        repeat { try? await Task.sleep(for: .seconds(1)) } while player.isAd || player.duration < 60
+        try? await Task.sleep(for: .seconds(3))
+        func report(_ step: String, seconds: Int = 6) async {
+            for i in 0..<(seconds * 2) {
+                let paused = (try? await engine.webView.evaluateJavaScript(
+                    "(() => { const v = document.querySelector('video'); return v ? v.paused : true })()")) as? Bool ?? true
+                if i == seconds * 2 - 1 || !paused {
+                    NSLog("[hold] %@ %.1fs playing=%d videoPlaying=%d current=%@", step, Double(i) * 0.5,
+                          player.isPlaying ? 1 : 0, paused ? 0 : 1, player.current?.title ?? "-")
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+        }
+        await report("before-pause", seconds: 1)
+        player.pause()
+        await report("paused")
+        _ = try? await engine.webView.evaluateJavaScript("document.querySelector('video').play(); 1")
+        await report("page-play")
+        engine.webView.reload()
+        await report("page-reload", seconds: 12)
+        _ = try? await engine.webView.evaluateJavaScript("""
+            document.querySelector('ytmusic-app').dispatchEvent(new CustomEvent('yt-navigate', { bubbles: true, composed: true,
+              detail: { endpoint: { watchEndpoint: { videoId: 'jNQXAC9IVRw' } } } })); 1
+            """)
+        await report("page-other-video", seconds: 12)
+        player.resume()
+        await report("resume", seconds: 8)
+        NSLog("[hold] done")
     }
 
     func didSignIn() async {

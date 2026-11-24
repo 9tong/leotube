@@ -531,7 +531,8 @@ final class PlaybackController {
                 advance(auto: true)
             }
         case .play:
-            isPlaying = true
+            // Only our own commands start playback (see PlayerEngine.wantsPlayback).
+            if engine.wantsPlayback { isPlaying = true }
         case .pause:
             break
         case .remote(let action, let t):

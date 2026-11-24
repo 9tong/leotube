@@ -40,6 +40,11 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     /// The video an "ended" event was already reported for, so a track can
     /// only finish once however many signals (JS, polling, guard) notice it.
     private var endedReportedFor: String?
+    /// Whether LeoTube wants music playing. Only our own play, load and pause
+    /// commands change it. While it's false the web page may not start
+    /// playback by itself: after the Mac woke from sleep, the web app restarted
+    /// a song that had been paused for 45 minutes.
+    private(set) var wantsPlayback = false
 
     static let debug = ProcessInfo.processInfo.environment["LEOTUBE_DEBUG"] != nil
     /// Test hook: disables both early-end mechanisms, so a track plays to its
@@ -91,6 +96,16 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     }
 
     func load(videoId: String, playlistId: String?) {
+        wantsPlayback = true
+        issueLoad(videoId)
+    }
+
+    /// Puts our track back in the web app without starting it if it's paused.
+    private func reassert(_ videoId: String) {
+        issueLoad(videoId)
+    }
+
+    private func issueLoad(_ videoId: String) {
         if expectedVideoId != videoId {
             pageLoadRetried.removeAll()
             endedReportedFor = nil
@@ -98,10 +113,11 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         expectedVideoId = videoId
         loadIssuedAt = Date()
         startPolling()
+        let hold = !wantsPlayback
         Task {
             let ok = (try? await webView.callAsyncJavaScript(
-                "return window.__lt ? window.__lt.load(id, vol) : false",
-                arguments: ["id": videoId, "vol": volume], in: nil, contentWorld: .page)) as? Bool ?? false
+                "return window.__lt ? window.__lt.load(id, vol, hold) : false",
+                arguments: ["id": videoId, "vol": volume, "hold": hold], in: nil, contentWorld: .page)) as? Bool ?? false
             if !ok { loadPage(videoId) }
         }
     }
@@ -135,8 +151,15 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         }
     }
 
-    func play() { run("window.__lt && window.__lt.play()") }
-    func pause() { run("window.__lt && window.__lt.pause()") }
+    func play() {
+        wantsPlayback = true
+        run("window.__lt && window.__lt.play()")
+    }
+
+    func pause() {
+        wantsPlayback = false
+        run("window.__lt && window.__lt.pause()")
+    }
     func stop() {
         expectedVideoId = nil
         pause()
@@ -180,12 +203,22 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         s.isAd = dict["ad"] as? Bool ?? false
         s.error = dict["err"] as? String
 
+        // Music the user paused stays paused, whatever started it (the web app
+        // recovering after sleep, a page reload). The page's own guard
+        // normally stops it first; this catches anything that slips past.
+        if !wantsPlayback, !s.paused {
+            if Self.debug { NSLog("[engine] page started playback by itself; pausing") }
+            pause()
+            s.paused = true
+            s.buffering = false
+        }
+
         // In-app loads can be rejected (e.g. bot checks for signed-out
         // sessions) or stall at 0:00 where a full page load succeeds: retry
         // once that way.
-        let stalled = s.videoId == expectedVideoId && !s.isAd && s.time < 0.5 && (s.buffering || s.duration == 0)
+        let stalled = wantsPlayback && s.videoId == expectedVideoId && !s.isAd && s.time < 0.5 && (s.buffering || s.duration == 0)
             && Date().timeIntervalSince(loadIssuedAt) > 8
-        if s.error != nil || stalled, let expected = expectedVideoId, s.videoId == expected, !pageLoadRetried.contains(expected) {
+        if wantsPlayback, s.error != nil || stalled, let expected = expectedVideoId, s.videoId == expected, !pageLoadRetried.contains(expected) {
             if Self.debug { NSLog("[engine] retrying %@ with a page load (%@)", expected, s.error ?? "stalled") }
             pageLoadRetried.insert(expected)
             loadIssuedAt = Date()
@@ -213,7 +246,7 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         if let expected = expectedVideoId, let vid = s.videoId, vid != expected, !s.isAd,
            Date().timeIntervalSince(loadIssuedAt) > 4 {
             loadIssuedAt = Date()
-            load(videoId: expected, playlistId: nil)
+            reassert(expected)
             return
         }
         // Never report a foreign video's progress.
@@ -248,7 +281,7 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
             if nearEnd {
                 reportEnded(pausing: false)
             } else if Date().timeIntervalSince(loadIssuedAt) > 1.5 {
-                load(videoId: expected, playlistId: nil)
+                reassert(expected)
             }
         case "remote":
             guard let action = body["action"] as? String else { return }
@@ -262,7 +295,8 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     }
 
     private func reportEnded(pausing: Bool) {
-        guard let expected = expectedVideoId, endedReportedFor != expected else { return }
+        // A paused song can't finish; a stray signal mustn't start the next one.
+        guard wantsPlayback, let expected = expectedVideoId, endedReportedFor != expected else { return }
         endedReportedFor = expected
         if pausing { pause() }
         if Self.debug { NSLog("[engine] ended %@ (native=%d)", expected, pausing ? 1 : 0) }
@@ -272,9 +306,12 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         if let expected = expectedVideoId {
             // A full page load starts a fresh bridge: tell it which video is ours.
+            // If we're paused, keep the reloaded page from playing.
+            let hold = !wantsPlayback
             Task {
-                _ = try? await webView.callAsyncJavaScript("if (window.__lt) window.__lt.expected = id",
-                                                          arguments: ["id": expected], in: nil, contentWorld: .page)
+                _ = try? await webView.callAsyncJavaScript(
+                    "if (window.__lt) { window.__lt.expected = id; if (hold) window.__lt.pause(); }",
+                    arguments: ["id": expected, "hold": hold], in: nil, contentWorld: .page)
                 applyNowPlayingMetadata()
             }
         } else {
@@ -310,12 +347,15 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
       const post = (m) => { try { window.webkit.messageHandlers.lt.postMessage(m); } catch (e) {} };
       const lt = window.__lt = {
         expected: null, endSent: false, vol: 0.8,
+        // Set while LeoTube is paused: the page may not start playback by itself.
+        hold: false,
         player() { return document.getElementById('movie_player'); },
         video() { return document.querySelector('video'); },
         isAd() { const p = this.player(); return !!(p && p.classList && p.classList.contains('ad-showing')); },
         currentVid() { try { const p = this.player(); return p && p.getVideoData ? p.getVideoData().video_id : null; } catch (e) { return null; } },
-        load(id, vol) {
+        load(id, vol, hold) {
           const p = this.player();
+          this.hold = !!hold;
           this.expected = id; this.endSent = false; this.lastForeign = null;
           if (typeof vol === 'number') this.vol = vol;
           const app = document.querySelector('ytmusic-app');
@@ -335,8 +375,8 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
           }
           return false;
         },
-        play() { const v = this.video(); if (v) { v.play().catch(() => {}); } else { const p = this.player(); p && p.playVideo && p.playVideo(); } },
-        pause() { const v = this.video(); if (v) v.pause(); },
+        play() { this.hold = false; const v = this.video(); if (v) { v.play().catch(() => {}); } else { const p = this.player(); p && p.playVideo && p.playVideo(); } },
+        pause() { this.hold = true; const v = this.video(); if (v) v.pause(); },
         seek(t) { const p = this.player(); this.endSent = false; if (p && p.seekTo) p.seekTo(t, true); else { const v = this.video(); if (v) v.currentTime = t; } },
         volume(x) {
           this.vol = x;
@@ -400,7 +440,18 @@ final class PlayerEngine: NSObject, WKScriptMessageHandler, WKNavigationDelegate
         }
       };
       ['play', 'playing', 'loadeddata', 'timeupdate'].forEach((t) => document.addEventListener(t, guardForeign, true));
-      document.addEventListener('play', (e) => { if (e.target instanceof HTMLMediaElement) post({ type: 'play' }); }, true);
+      // While held, stop anything that starts playing (the web app resuming on
+      // its own, e.g. after the Mac wakes); only our play and load lift it.
+      const holdPaused = (e) => {
+        if (!(e.target instanceof HTMLMediaElement) || !lt.hold) return false;
+        e.target.pause();
+        return true;
+      };
+      document.addEventListener('playing', holdPaused, true);
+      document.addEventListener('play', (e) => {
+        if (holdPaused(e)) return;
+        if (e.target instanceof HTMLMediaElement) post({ type: 'play' });
+      }, true);
       document.addEventListener('pause', (e) => { if (e.target instanceof HTMLMediaElement) post({ type: 'pause' }); }, true);
 
       // macOS usually makes WebKit's media process the system "Now Playing"
